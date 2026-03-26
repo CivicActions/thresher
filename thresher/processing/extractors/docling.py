@@ -18,10 +18,15 @@ from pathlib import Path
 logger = logging.getLogger("thresher.extractors.docling")
 
 # Worker script executed in subprocess
+_AUDIO_EXTENSIONS = frozenset({".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"})
+_VIDEO_EXTENSIONS = frozenset({".mp4", ".avi", ".mov"})
+_MEDIA_EXTENSIONS = _AUDIO_EXTENSIONS | _VIDEO_EXTENSIONS
+
 _WORKER_SCRIPT = """
 import json
 import logging
 import sys
+from pathlib import Path
 
 # Suppress all logging in subprocess
 logging.disable(logging.CRITICAL)
@@ -40,23 +45,47 @@ def main():
         from docling.document_converter import DocumentConverter
         from docling.datamodel.pipeline_options import PdfPipelineOptions
         from docling.datamodel.base_models import InputFormat
-        from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 
-        pipeline_options = PdfPipelineOptions()
-        pipeline_options.do_ocr = False
+        AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"}
+        VIDEO_EXTS = {".mp4", ".avi", ".mov"}
+        suffix = Path(input_path).suffix.lower()
 
-        converter = DocumentConverter(
-            allowed_formats=[
-                InputFormat.PDF, InputFormat.DOCX, InputFormat.XLSX,
-                InputFormat.PPTX, InputFormat.HTML, InputFormat.IMAGE,
-                InputFormat.ASCIIDOC, InputFormat.MD, InputFormat.CSV,
-            ],
-            format_options={
-                InputFormat.PDF: {
-                    "pipeline_options": pipeline_options,
+        if suffix in AUDIO_EXTS or suffix in VIDEO_EXTS:
+            # Audio/video extraction via ASR pipeline
+            from docling.datamodel import asr_model_specs
+            from docling.datamodel.pipeline_options import AsrPipelineOptions
+            from docling.document_converter import AudioFormatOption
+            from docling.pipeline.asr_pipeline import AsrPipeline
+
+            asr_options = AsrPipelineOptions()
+            asr_options.asr_options = asr_model_specs.WHISPER_TURBO
+
+            converter = DocumentConverter(
+                allowed_formats=[InputFormat.AUDIO],
+                format_options={
+                    InputFormat.AUDIO: AudioFormatOption(
+                        pipeline_cls=AsrPipeline,
+                        pipeline_options=asr_options,
+                    ),
                 },
-            },
-        )
+            )
+        else:
+            # Document/image extraction
+            pipeline_options = PdfPipelineOptions()
+            pipeline_options.do_ocr = False
+
+            converter = DocumentConverter(
+                allowed_formats=[
+                    InputFormat.PDF, InputFormat.DOCX, InputFormat.XLSX,
+                    InputFormat.PPTX, InputFormat.HTML, InputFormat.IMAGE,
+                    InputFormat.ASCIIDOC, InputFormat.MD, InputFormat.CSV,
+                ],
+                format_options={
+                    InputFormat.PDF: {
+                        "pipeline_options": pipeline_options,
+                    },
+                },
+            )
 
         result = converter.convert(input_path, max_pages=max_pages)
         doc = result.document

@@ -32,6 +32,7 @@ class TestLoadDefaults:
     def test_contains_expected_file_type_groups(self):
         cfg = load_config()
         expected = {
+            "audio-video",
             "office-documents",
             "general-source",
             "data-files",
@@ -150,13 +151,13 @@ class TestUserConfigOverride:
         cfg = load_config(user_file)
         assert cfg.processing.docling_timeout == 999
         # Unmentioned defaults preserved
-        assert len(cfg.file_type_groups) == 6
+        assert len(cfg.file_type_groups) == 7
         assert cfg.destination.qdrant.url == "http://localhost:6333"
 
     def test_nonexistent_user_path_ignored(self):
         cfg = load_config("/nonexistent/path/config.yaml")
         assert isinstance(cfg, Config)
-        assert len(cfg.file_type_groups) == 6
+        assert len(cfg.file_type_groups) == 7
 
 
 # ---------------------------------------------------------------------------

@@ -30,6 +30,11 @@ destination:
 # Unmentioned built-in groups are preserved.
 # max_file_size: 0 means no limit; set per group to skip oversized files.
 #
+# Built-in groups: audio-video, office-documents, general-source,
+#   data-files, images, plain-text, binary
+# Audio/video uses docling ASR (Whisper) for transcription.
+# Requires ffmpeg for M4A, AAC, OGG, FLAC, and all video formats.
+#
 # file_type_groups:
 #   custom-group:
 #     extensions: [".custom"]

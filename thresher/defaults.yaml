@@ -4,6 +4,27 @@
 # max_file_size: 0 means no limit; set per group to skip oversized files.
 
 file_type_groups:
+  audio-video:
+    extensions:
+      - ".wav"
+      - ".mp3"
+      - ".m4a"
+      - ".aac"
+      - ".ogg"
+      - ".flac"
+      - ".mp4"
+      - ".avi"
+      - ".mov"
+    mime_types:
+      - "audio/"
+      - "video/"
+    extractor: docling
+    chunker:
+      strategy: chonkie-recursive
+      chunk_size: 512
+    priority: 45
+    max_file_size: 0  # no limit for media files
+
   office-documents:
     extensions: [".pdf", ".docx", ".xlsx", ".pptx", ".html", ".htm", ".rtf"]
     mime_types: ["application/pdf", "application/vnd.openxmlformats"]

@@ -270,3 +270,99 @@ class TestMimeTypeClassification:
     def test_no_content_no_extension_returns_none(self, default_groups):
         result = classify_file("data/mystery", default_groups, content=None)
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Audio/video file classification
+# ---------------------------------------------------------------------------
+
+
+class TestAudioVideoClassification:
+    """Test that audio/video files are classified into the audio-video group."""
+
+    @pytest.fixture
+    def default_groups(self):
+        from thresher.config import load_config
+
+        cfg = load_config()
+        return cfg.file_type_groups
+
+    def test_mp3_classified(self, default_groups):
+        result = classify_file("recording.mp3", default_groups)
+        assert result == "audio-video"
+
+    def test_wav_classified(self, default_groups):
+        result = classify_file("audio.wav", default_groups)
+        assert result == "audio-video"
+
+    def test_mp4_classified(self, default_groups):
+        result = classify_file("video.mp4", default_groups)
+        assert result == "audio-video"
+
+    def test_mov_classified(self, default_groups):
+        result = classify_file("clip.mov", default_groups)
+        assert result == "audio-video"
+
+    def test_flac_classified(self, default_groups):
+        result = classify_file("music.flac", default_groups)
+        assert result == "audio-video"
+
+    def test_m4a_classified(self, default_groups):
+        result = classify_file("podcast.m4a", default_groups)
+        assert result == "audio-video"
+
+    def test_ogg_classified(self, default_groups):
+        result = classify_file("voice.ogg", default_groups)
+        assert result == "audio-video"
+
+    def test_avi_classified(self, default_groups):
+        result = classify_file("movie.avi", default_groups)
+        assert result == "audio-video"
+
+    def test_aac_classified(self, default_groups):
+        result = classify_file("track.aac", default_groups)
+        assert result == "audio-video"
+
+    def test_audio_video_group_properties(self, default_groups):
+        group = default_groups["audio-video"]
+        assert group.extractor == "docling"
+        assert group.chunker.strategy == "chonkie-recursive"
+        assert group.priority == 45
+        assert group.max_file_size == 0  # no limit
+        assert "audio/" in group.mime_types
+        assert "video/" in group.mime_types
+
+
+class TestDoclingExtractorMediaDetection:
+    """Test that the docling extractor module correctly identifies media files."""
+
+    def test_audio_extensions_defined(self):
+        from thresher.processing.extractors.docling import _AUDIO_EXTENSIONS
+
+        assert ".mp3" in _AUDIO_EXTENSIONS
+        assert ".wav" in _AUDIO_EXTENSIONS
+        assert ".flac" in _AUDIO_EXTENSIONS
+        assert ".m4a" in _AUDIO_EXTENSIONS
+
+    def test_video_extensions_defined(self):
+        from thresher.processing.extractors.docling import _VIDEO_EXTENSIONS
+
+        assert ".mp4" in _VIDEO_EXTENSIONS
+        assert ".avi" in _VIDEO_EXTENSIONS
+        assert ".mov" in _VIDEO_EXTENSIONS
+
+    def test_media_extensions_is_union(self):
+        from thresher.processing.extractors.docling import (
+            _AUDIO_EXTENSIONS,
+            _MEDIA_EXTENSIONS,
+            _VIDEO_EXTENSIONS,
+        )
+
+        assert _MEDIA_EXTENSIONS == _AUDIO_EXTENSIONS | _VIDEO_EXTENSIONS
+
+    def test_non_media_not_in_set(self):
+        from thresher.processing.extractors.docling import _MEDIA_EXTENSIONS
+
+        assert ".pdf" not in _MEDIA_EXTENSIONS
+        assert ".docx" not in _MEDIA_EXTENSIONS
+        assert ".png" not in _MEDIA_EXTENSIONS
