@@ -18,6 +18,7 @@ from thresher.config import Config, GCSConfig, ProcessingConfig, SourceConfig
 from thresher.controller.archive_expander import (
     ArchiveExpander,
     _archive_stem,
+    _detect_archive_type_from_bytes,
     _should_skip_member,
     is_archive,
 )
@@ -134,6 +135,45 @@ class TestIsArchive:
     def test_case_insensitive(self) -> None:
         assert is_archive("ARCHIVE.ZIP") is True
         assert is_archive("Data.TAR.GZ") is True
+
+    def test_extensionless_zip_by_content(self) -> None:
+        content = _make_zip({"hello.txt": b"hello"})
+        assert is_archive("data/noext_file", content=content) is True
+
+    def test_extensionless_tar_gz_by_content(self) -> None:
+        content = _make_tar_gz({"a.txt": b"a"})
+        assert is_archive("archive_file", content=content) is True
+
+    def test_extensionless_gz_by_content(self) -> None:
+        content = _make_gz(b"hello world")
+        assert is_archive("compressed_data", content=content) is True
+
+    def test_extensionless_non_archive_by_content(self) -> None:
+        assert is_archive("some_file", content=b"just plain text content") is False
+
+    def test_extensionless_too_short_content(self) -> None:
+        assert is_archive("tiny", content=b"PK") is False
+
+
+class TestDetectArchiveTypeFromBytes:
+    def test_zip_magic(self) -> None:
+        assert _detect_archive_type_from_bytes(b"PK\x03\x04rest...") == "zip"
+
+    def test_gz_magic(self) -> None:
+        assert _detect_archive_type_from_bytes(b"\x1f\x8b\x08more...") == "gz"
+
+    def test_bz2_magic(self) -> None:
+        assert _detect_archive_type_from_bytes(b"BZh9more...") == "bz2"
+
+    def test_xz_magic(self) -> None:
+        assert _detect_archive_type_from_bytes(b"\xfd7zXZ\x00more") == "xz"
+
+    def test_tar_magic(self) -> None:
+        header = b"\x00" * 257 + b"ustar" + b"\x00" * 250
+        assert _detect_archive_type_from_bytes(header) == "tar"
+
+    def test_no_match(self) -> None:
+        assert _detect_archive_type_from_bytes(b"just text content here pad") is None
 
 
 # ---------------------------------------------------------------------------
@@ -621,3 +661,56 @@ class TestScannerArchiveIntegration:
 
         assert len(items) == 2
         assert all(i["source_type"] == "direct" for i in items)
+
+
+# ---------------------------------------------------------------------------
+# Extensionless archive expansion (magic-byte detection)
+# ---------------------------------------------------------------------------
+
+
+class TestExtensionlessArchiveExpansion:
+    def test_extensionless_zip_detected_and_expanded(self, mock_source: MagicMock) -> None:
+        archive_bytes = _make_zip({"doc.txt": b"hello"})
+        mock_source._storage["data/mystery_file"] = archive_bytes
+
+        expander = ArchiveExpander(mock_source, expanded_prefix="expanded/")
+        files = [
+            FileInfo(path="data/mystery_file", size=len(archive_bytes), updated=datetime.now())
+        ]
+        results = expander.expand_archives(files)
+
+        paths = [r["path"] for r in results]
+        assert "expanded/data/mystery_file/doc.txt" in paths
+
+    def test_extensionless_tar_gz_detected_and_expanded(self, mock_source: MagicMock) -> None:
+        archive_bytes = _make_tar_gz({"a.py": b"print('hi')"})
+        mock_source._storage["bundle_noext"] = archive_bytes
+
+        expander = ArchiveExpander(mock_source, expanded_prefix="expanded/")
+        files = [FileInfo(path="bundle_noext", size=len(archive_bytes), updated=datetime.now())]
+        results = expander.expand_archives(files)
+
+        paths = [r["path"] for r in results]
+        assert len(paths) == 1
+        assert "a.py" in paths[0]
+
+    def test_extensionless_non_archive_not_expanded(self, mock_source: MagicMock) -> None:
+        mock_source._storage["data/readme"] = b"Just a plain text file without extension"
+
+        expander = ArchiveExpander(mock_source, expanded_prefix="expanded/")
+        files = [FileInfo(path="data/readme", size=40, updated=datetime.now())]
+        results = expander.expand_archives(files)
+
+        assert results == []
+
+    def test_extension_file_not_probed(self, mock_source: MagicMock) -> None:
+        """Files with a non-archive extension should NOT trigger content probe."""
+        mock_source._storage["data/report.pdf"] = b"%PDF-1.4 ..."
+
+        expander = ArchiveExpander(mock_source, expanded_prefix="expanded/")
+        files = [FileInfo(path="data/report.pdf", size=50, updated=datetime.now())]
+        results = expander.expand_archives(files)
+
+        assert results == []
+        # download_content should NOT be called for .pdf files
+        mock_source.download_content.assert_not_called()

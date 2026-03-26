@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from thresher.processing.classifier import (
     DETECTORS,
     _detect_caret_density,
@@ -212,3 +214,59 @@ class TestShouldSkipImage:
     def test_case_insensitive_extension(self):
         assert should_skip_image("photo.JPG", 100, min_size=51200) is True
         assert should_skip_image("photo.Png", 100, min_size=51200) is True
+
+
+# ---------------------------------------------------------------------------
+# MIME-type classification for extensionless files
+# ---------------------------------------------------------------------------
+
+
+class TestMimeTypeClassification:
+    """Test that files without extensions are classified via MIME type detection."""
+
+    @pytest.fixture
+    def default_groups(self):
+        """Load the default file type groups from config."""
+        from thresher.config import load_config
+
+        cfg = load_config()
+        return cfg.file_type_groups
+
+    def test_extensionless_pdf(self, default_groups):
+        content = b"%PDF-1.4 fake pdf content here with enough bytes to detect"
+        result = classify_file("data/mystery_document", default_groups, content=content)
+        assert result == "office-documents"
+
+    def test_extensionless_json(self, default_groups):
+        content = b'{"key": "value", "number": 42}'
+        result = classify_file("data/api_response", default_groups, content=content)
+        assert result == "data-files"
+
+    def test_extensionless_xml(self, default_groups):
+        content = b'<?xml version="1.0"?><root><item>hello</item></root>'
+        result = classify_file("data/config_file", default_groups, content=content)
+        assert result == "data-files"
+
+    def test_extensionless_plain_text(self, default_groups):
+        content = b"This is just a plain text file without any extension at all."
+        result = classify_file("data/readme", default_groups, content=content)
+        assert result == "plain-text"
+
+    def test_extensionless_shell_script(self, default_groups):
+        content = b"#!/bin/bash\necho hello\nexit 0\n"
+        result = classify_file("scripts/deploy", default_groups, content=content)
+        assert result == "general-source"
+
+    def test_extensionless_python_script(self, default_groups):
+        content = b"#!/usr/bin/env python3\nimport os\nprint(os.getcwd())\n"
+        result = classify_file("tools/check", default_groups, content=content)
+        assert result == "general-source"
+
+    def test_extensionless_binary_returns_none(self, default_groups):
+        content = b"\x00\x01\x02\x03\xff\xfe binary garbage"
+        result = classify_file("data/unknown_blob", default_groups, content=content)
+        assert result is None
+
+    def test_no_content_no_extension_returns_none(self, default_groups):
+        result = classify_file("data/mystery", default_groups, content=None)
+        assert result is None

@@ -30,15 +30,44 @@ _NON_EXTRACTABLE_EXTENSIONS: frozenset[str] = frozenset({".jar", ".war", ".whl",
 
 _SKIP_FILENAMES: frozenset[str] = frozenset({"Thumbs.db", "desktop.ini", ".DS_Store"})
 
+# Magic byte signatures for archive formats
+_MAGIC_SIGNATURES: tuple[tuple[bytes, str], ...] = (
+    (b"PK\x03\x04", "zip"),
+    (b"PK\x05\x06", "zip"),  # empty zip
+    (b"\x1f\x8b", "gz"),
+    (b"BZh", "bz2"),
+    (b"\xfd7zXZ\x00", "xz"),
+)
 
-def is_archive(path: str) -> bool:
-    """Check if *path* has a supported archive extension."""
+# Tar archives store "ustar" at offset 257 in the header.
+_TAR_MAGIC_OFFSET = 257
+_TAR_MAGIC = b"ustar"
+
+
+def _detect_archive_type_from_bytes(header: bytes) -> str | None:
+    """Return archive type string from magic bytes, or None."""
+    for signature, fmt in _MAGIC_SIGNATURES:
+        if header[: len(signature)] == signature:
+            return fmt
+    if len(header) > _TAR_MAGIC_OFFSET + len(_TAR_MAGIC):
+        if header[_TAR_MAGIC_OFFSET : _TAR_MAGIC_OFFSET + len(_TAR_MAGIC)] == _TAR_MAGIC:
+            return "tar"
+    return None
+
+
+def is_archive(path: str, *, content: bytes | None = None) -> bool:
+    """Check if *path* is a supported archive by extension or magic bytes."""
     lower = path.lower()
     for compound in _COMPOUND_TAR_EXTENSIONS:
         if lower.endswith(compound):
             return True
     ext = os.path.splitext(lower)[1]
-    return ext in _ARCHIVE_EXTENSIONS
+    if ext in _ARCHIVE_EXTENSIONS:
+        return True
+    # No matching extension -- try magic bytes if content provided
+    if content is not None and len(content) >= 6:
+        return _detect_archive_type_from_bytes(content) is not None
+    return False
 
 
 def _should_skip_member(member_name: str) -> bool:
@@ -91,15 +120,27 @@ class ArchiveExpander:
         """Expand every archive in *file_infos*, returning expanded-file dicts."""
         results: list[dict] = []
         for fi in file_infos:
-            if not is_archive(fi.path):
-                continue
-            expanded = self._expand_single(fi.path, depth=0)
-            results.extend(expanded)
+            if is_archive(fi.path):
+                expanded = self._expand_single(fi.path, depth=0)
+                results.extend(expanded)
+            elif not os.path.splitext(fi.path)[1]:
+                # No extension -- peek at content for magic-byte detection
+                if self._is_archive_by_content(fi.path):
+                    expanded = self._expand_single(fi.path, depth=0)
+                    results.extend(expanded)
         return results
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _is_archive_by_content(self, path: str) -> bool:
+        """Download file content and check magic bytes for archive format."""
+        try:
+            content = self._source.download_content(path)
+            return _detect_archive_type_from_bytes(content[:512]) is not None
+        except Exception:
+            return False
 
     def _expand_single(self, archive_path: str, depth: int) -> list[dict]:
         """Download an archive from the source provider, expand, and upload members."""
@@ -235,6 +276,30 @@ class ArchiveExpander:
             return self._extract_standalone_compressed(local_path, dest_dir, bz2.open)
         if lower.endswith(".xz"):
             return self._extract_standalone_compressed(local_path, dest_dir, lzma.open)
+
+        # No extension match -- try magic-byte detection
+        header = local_path.read_bytes()[:512]
+        fmt = _detect_archive_type_from_bytes(header)
+        if fmt == "zip":
+            return self._extract_zip(local_path, dest_dir)
+        if fmt == "tar":
+            return self._extract_tar(local_path, dest_dir)
+        if fmt == "gz":
+            # Try tar.gz first (more common for extensionless compressed archives)
+            try:
+                return self._extract_tar(local_path, dest_dir)
+            except Exception:
+                return self._extract_standalone_compressed(local_path, dest_dir, gzip.open)
+        if fmt == "bz2":
+            try:
+                return self._extract_tar(local_path, dest_dir)
+            except Exception:
+                return self._extract_standalone_compressed(local_path, dest_dir, bz2.open)
+        if fmt == "xz":
+            try:
+                return self._extract_tar(local_path, dest_dir)
+            except Exception:
+                return self._extract_standalone_compressed(local_path, dest_dir, lzma.open)
 
         logger.warning("Unsupported archive format: %s", local_path.name)
         return []

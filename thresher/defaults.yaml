@@ -44,6 +44,17 @@ file_type_groups:
       - ".ex"
       - ".erl"
       - ".hs"
+    mime_types:
+      - "text/x-python"
+      - "text/x-script.python"
+      - "text/x-java"
+      - "text/x-c"
+      - "text/x-c++"
+      - "text/x-script"
+      - "text/x-shellscript"
+      - "text/x-perl"
+      - "text/x-ruby"
+      - "text/x-php"
     extractor: raw-text
     chunker:
       strategy: chonkie-code
@@ -54,6 +65,7 @@ file_type_groups:
 
   data-files:
     extensions: [".json", ".xml", ".csv", ".tsv", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".properties"]
+    mime_types: ["application/json", "application/xml", "text/xml", "text/csv"]
     extractor: raw-text
     chunker:
       strategy: chonkie-recursive
