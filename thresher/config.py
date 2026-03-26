@@ -66,6 +66,9 @@ class ProcessingConfig:
     malloc_arena_max: int = 2
     archive_depth: int = 2
     summary_interval: int = 100
+    archive_exclude_extensions: list[str] = field(
+        default_factory=lambda: [".jar", ".war", ".whl", ".egg", ".apk", ".ipa"]
+    )
 
 
 @dataclass
@@ -322,6 +325,13 @@ def _build_config(raw: dict[str, Any]) -> Config:
             ),
             archive_depth=int(
                 proc_raw.get("archive_depth", 2) if isinstance(proc_raw, dict) else 2
+            ),
+            archive_exclude_extensions=(
+                proc_raw.get(
+                    "archive_exclude_extensions", [".jar", ".war", ".whl", ".egg", ".apk", ".ipa"]
+                )
+                if isinstance(proc_raw, dict)
+                else [".jar", ".war", ".whl", ".egg", ".apk", ".ipa"]
             ),
             summary_interval=int(
                 proc_raw.get("summary_interval", 100) if isinstance(proc_raw, dict) else 100

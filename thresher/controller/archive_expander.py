@@ -26,8 +26,6 @@ _ARCHIVE_EXTENSIONS: frozenset[str] = frozenset({".zip", ".tar", ".gz", ".bz2", 
 
 _COMPOUND_TAR_EXTENSIONS: tuple[str, ...] = (".tar.gz", ".tar.bz2", ".tar.xz")
 
-_NON_EXTRACTABLE_EXTENSIONS: frozenset[str] = frozenset({".jar", ".war", ".whl", ".egg"})
-
 _SKIP_FILENAMES: frozenset[str] = frozenset({"Thumbs.db", "desktop.ini", ".DS_Store"})
 
 # Magic byte signatures for archive formats
@@ -55,13 +53,24 @@ def _detect_archive_type_from_bytes(header: bytes) -> str | None:
     return None
 
 
-def is_archive(path: str, *, content: bytes | None = None) -> bool:
-    """Check if *path* is a supported archive by extension or magic bytes."""
+def is_archive(
+    path: str,
+    *,
+    content: bytes | None = None,
+    exclude_extensions: frozenset[str] = frozenset(),
+) -> bool:
+    """Check if *path* is a supported archive by extension or magic bytes.
+
+    Files whose extension is in *exclude_extensions* (e.g. .jar, .war) are
+    never treated as expandable archives.
+    """
     lower = path.lower()
+    ext = os.path.splitext(lower)[1]
+    if ext and ext in exclude_extensions:
+        return False
     for compound in _COMPOUND_TAR_EXTENSIONS:
         if lower.endswith(compound):
             return True
-    ext = os.path.splitext(lower)[1]
     if ext in _ARCHIVE_EXTENSIONS:
         return True
     # No matching extension -- try magic bytes if content provided
@@ -70,7 +79,7 @@ def is_archive(path: str, *, content: bytes | None = None) -> bool:
     return False
 
 
-def _should_skip_member(member_name: str) -> bool:
+def _should_skip_member(member_name: str, exclude_extensions: frozenset[str] = frozenset()) -> bool:
     """Return True if the archive member should be filtered out."""
     if not member_name or member_name.endswith("/"):
         return True
@@ -82,7 +91,7 @@ def _should_skip_member(member_name: str) -> bool:
     if basename in _SKIP_FILENAMES:
         return True
     ext = os.path.splitext(basename.lower())[1]
-    if ext in _NON_EXTRACTABLE_EXTENSIONS:
+    if ext in exclude_extensions:
         return True
     return False
 
@@ -102,15 +111,23 @@ def _archive_stem(archive_path: str) -> str:
 class ArchiveExpander:
     """Expand archives from a source provider and upload their members back."""
 
+    _DEFAULT_EXCLUDE = frozenset({".jar", ".war", ".whl", ".egg", ".apk", ".ipa"})
+
     def __init__(
         self,
         source: SourceProvider,
         expanded_prefix: str = "expanded/",
         max_depth: int = 2,
+        exclude_extensions: list[str] | None = None,
     ) -> None:
         self._source = source
         self._expanded_prefix = expanded_prefix
         self._max_depth = max_depth
+        self._exclude_extensions: frozenset[str] = (
+            frozenset(exclude_extensions)
+            if exclude_extensions is not None
+            else self._DEFAULT_EXCLUDE
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -120,7 +137,7 @@ class ArchiveExpander:
         """Expand every archive in *file_infos*, returning expanded-file dicts."""
         results: list[dict] = []
         for fi in file_infos:
-            if is_archive(fi.path):
+            if is_archive(fi.path, exclude_extensions=self._exclude_extensions):
                 expanded = self._expand_single(fi.path, depth=0)
                 results.extend(expanded)
             elif not os.path.splitext(fi.path)[1]:
@@ -170,14 +187,17 @@ class ArchiveExpander:
             member_count = 0
 
             for member_name, member_local_path in members:
-                if _should_skip_member(member_name):
+                if _should_skip_member(member_name, self._exclude_extensions):
                     continue
 
                 remote_path = f"{expansion_folder}/{member_name}"
                 self._source.upload_from_path(remote_path, member_local_path)
                 member_count += 1
 
-                if is_archive(member_name) and depth + 1 < self._max_depth:
+                if (
+                    is_archive(member_name, exclude_extensions=self._exclude_extensions)
+                    and depth + 1 < self._max_depth
+                ):
                     nested = self._expand_local_archive(
                         member_local_path,
                         member_name,
@@ -235,13 +255,16 @@ class ArchiveExpander:
         results: list[dict] = []
 
         for name, path in members:
-            if _should_skip_member(name):
+            if _should_skip_member(name, self._exclude_extensions):
                 continue
 
             remote_path = f"{expansion_folder}/{name}"
             self._source.upload_from_path(remote_path, path)
 
-            if is_archive(name) and depth + 1 < self._max_depth:
+            if (
+                is_archive(name, exclude_extensions=self._exclude_extensions)
+                and depth + 1 < self._max_depth
+            ):
                 nested = self._expand_local_archive(
                     path, name, expansion_folder, original_archive, depth + 1
                 )

@@ -136,6 +136,25 @@ class TestIsArchive:
         assert is_archive("ARCHIVE.ZIP") is True
         assert is_archive("Data.TAR.GZ") is True
 
+    def test_jar_excluded_by_default(self) -> None:
+        exclude = frozenset({".jar", ".war", ".whl", ".egg"})
+        assert is_archive("lib.jar", exclude_extensions=exclude) is False
+        assert is_archive("app.war", exclude_extensions=exclude) is False
+
+    def test_jar_not_excluded_without_list(self) -> None:
+        # .jar is not in _ARCHIVE_EXTENSIONS, so it's False either way
+        assert is_archive("lib.jar") is False
+
+    def test_custom_exclude_blocks_zip(self) -> None:
+        # .zip is normally an archive, but can be excluded
+        exclude = frozenset({".zip"})
+        assert is_archive("data.zip", exclude_extensions=exclude) is False
+
+    def test_exclude_does_not_block_other_archives(self) -> None:
+        exclude = frozenset({".jar"})
+        assert is_archive("data.zip", exclude_extensions=exclude) is True
+        assert is_archive("data.tar.gz", exclude_extensions=exclude) is True
+
     def test_extensionless_zip_by_content(self) -> None:
         content = _make_zip({"hello.txt": b"hello"})
         assert is_archive("data/noext_file", content=content) is True
@@ -203,10 +222,22 @@ class TestShouldSkipMember:
         assert _should_skip_member("subdir/.DS_Store") is True
 
     def test_non_extractable_archives(self) -> None:
-        assert _should_skip_member("lib.jar") is True
-        assert _should_skip_member("app.war") is True
-        assert _should_skip_member("pkg.whl") is True
-        assert _should_skip_member("pkg.egg") is True
+        exclude = frozenset({".jar", ".war", ".whl", ".egg", ".apk", ".ipa"})
+        assert _should_skip_member("lib.jar", exclude) is True
+        assert _should_skip_member("app.war", exclude) is True
+        assert _should_skip_member("pkg.whl", exclude) is True
+        assert _should_skip_member("pkg.egg", exclude) is True
+
+    def test_non_extractable_without_exclude_list(self) -> None:
+        # Without an exclude list, .jar etc are NOT skipped
+        assert _should_skip_member("lib.jar") is False
+        assert _should_skip_member("app.war") is False
+
+    def test_custom_exclude_extensions(self) -> None:
+        custom = frozenset({".ear", ".aar"})
+        assert _should_skip_member("lib.ear", custom) is True
+        assert _should_skip_member("lib.aar", custom) is True
+        assert _should_skip_member("lib.jar", custom) is False
 
     def test_normal_files_not_skipped(self) -> None:
         assert _should_skip_member("readme.txt") is False
@@ -714,3 +745,51 @@ class TestExtensionlessArchiveExpansion:
         assert results == []
         # download_content should NOT be called for .pdf files
         mock_source.download_content.assert_not_called()
+
+    def test_jar_excluded_from_expansion(self, mock_source: MagicMock) -> None:
+        """Jar files (zip-based) should be excluded from archive expansion."""
+        archive_bytes = _make_zip({"META-INF/MANIFEST.MF": b"Manifest-Version: 1.0"})
+        mock_source._storage["libs/mylib.jar"] = archive_bytes
+
+        expander = ArchiveExpander(
+            mock_source,
+            expanded_prefix="expanded/",
+            exclude_extensions=[".jar", ".war"],
+        )
+        files = [FileInfo(path="libs/mylib.jar", size=len(archive_bytes), updated=datetime.now())]
+        results = expander.expand_archives(files)
+
+        assert results == []
+
+    def test_custom_exclude_prevents_expansion(self, mock_source: MagicMock) -> None:
+        """Custom exclude list prevents expansion of specified extensions."""
+        archive_bytes = _make_zip({"data.csv": b"a,b,c"})
+        mock_source._storage["data/bundle.xyz"] = archive_bytes
+
+        expander = ArchiveExpander(
+            mock_source,
+            expanded_prefix="expanded/",
+            exclude_extensions=[".xyz"],
+        )
+        files = [FileInfo(path="data/bundle.xyz", size=len(archive_bytes), updated=datetime.now())]
+        results = expander.expand_archives(files)
+
+        assert results == []
+
+    def test_empty_exclude_allows_all(self, mock_source: MagicMock) -> None:
+        """Empty exclude list allows all archive types including .jar."""
+        archive_bytes = _make_zip({"readme.txt": b"hello"})
+        mock_source._storage["libs/mylib.jar"] = archive_bytes
+
+        # .jar is not in _ARCHIVE_EXTENSIONS, so it won't be detected by extension
+        # But this test confirms the exclude list doesn't interfere with normal archives
+        mock_source._storage["data/test.zip"] = archive_bytes
+        expander = ArchiveExpander(
+            mock_source,
+            expanded_prefix="expanded/",
+            exclude_extensions=[],
+        )
+        files = [FileInfo(path="data/test.zip", size=len(archive_bytes), updated=datetime.now())]
+        results = expander.expand_archives(files)
+
+        assert len(results) == 1

@@ -105,6 +105,7 @@ def scan_files(
             source=source,
             expanded_prefix=config.source.gcs.expanded_prefix,
             max_depth=config.processing.archive_depth,
+            exclude_extensions=config.processing.archive_exclude_extensions,
         )
         for exp in expander.expand_archives(archives):
             if exp["path"] in skip_set:

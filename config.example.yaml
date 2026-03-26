@@ -69,6 +69,13 @@ routing:
 #   malloc_arena_max: 2                  # MALLOC_ARENA_MAX setting
 #   archive_depth: 2                     # Max recursive archive expansion depth
 #   summary_interval: 100                # Log summary every N files
+#   archive_exclude_extensions:           # Zip-based artifacts to never expand
+#     - ".jar"
+#     - ".war"
+#     - ".whl"
+#     - ".egg"
+#     - ".apk"
+#     - ".ipa"
 
 # --- Embedding Settings ---
 # embedding:
