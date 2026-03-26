@@ -3186,6 +3186,7 @@ dev = [
     { name = "prek" },
     { name = "pytest" },
     { name = "pytest-timeout" },
+    { name = "requests" },
     { name = "ruff" },
     { name = "ty" },
 ]
@@ -3208,6 +3209,7 @@ dev = [
     { name = "prek", specifier = ">=0.3.8" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-timeout", specifier = ">=2.3.1" },
+    { name = "requests", specifier = ">=2.32.5" },
     { name = "ruff", specifier = ">=0.15.7" },
     { name = "ty", specifier = ">=0.0.25" },
 ]

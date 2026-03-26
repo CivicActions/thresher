@@ -23,7 +23,7 @@ thresher = "thresher.cli:main"
 include = ["thresher*"]
 
 [tool.setuptools.package-data]
-thresher = ["defaults.yaml"]
+thresher = ["defaults.yaml", "config_schema.json"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
@@ -44,6 +44,7 @@ testpaths = ["tests"]
 markers = [
     "integration: marks tests requiring external services (GCS, Qdrant)",
     "contract: marks provider contract tests",
+    "functional: marks functional tests requiring Docker services (fake-gcs-server, qdrant)",
 ]
 
 [dependency-groups]
@@ -51,6 +52,7 @@ dev = [
     "prek>=0.3.8",
     "pytest>=8.0",
     "pytest-timeout>=2.3.1",
+    "requests>=2.32.5",
     "ruff>=0.15.7",
     "ty>=0.0.25",
 ]
