@@ -1,0 +1,92 @@
+# Thresher Configuration
+# Copy to config.yaml and customize for your environment.
+# Values below show defaults — uncomment and change as needed.
+#
+# Loading order: built-in defaults → this file → environment variables
+# Environment variables: QDRANT_URL, QDRANT_API_KEY, GCS_BUCKET
+
+# ─── Source Provider ───────────────────────────────────────────────
+source:
+  provider: gcs
+  gcs:
+    bucket: ""                           # GCS bucket name (required, or GCS_BUCKET env)
+    source_prefix: ""                    # Prefix for source files
+    expanded_prefix: "expanded/"         # Prefix for expanded archive files
+    cache_prefix: "cache/"               # Prefix for extraction cache
+    queue_prefix: "queue/"               # Prefix for queue batches
+
+# ─── Destination Provider ──────────────────────────────────────────
+destination:
+  provider: qdrant
+  qdrant:
+    url: "http://localhost:6333"         # Qdrant URL (env: QDRANT_URL)
+    api_key: ""                          # Qdrant API key (env: QDRANT_API_KEY)
+    timeout: 60                          # Connection timeout seconds
+    batch_size: 100                      # Upsert batch size
+
+# ─── File Type Groups ─────────────────────────────────────────────
+# User-defined groups merge with built-in defaults (defaults.yaml).
+# Same-name groups replace the built-in entirely.
+# Unmentioned built-in groups are preserved.
+#
+# file_type_groups:
+#   custom-group:
+#     extensions: [".custom"]
+#     extractor: raw-text
+#     chunker:
+#       strategy: chonkie-recursive
+#       chunk_size: 512
+
+# ─── Routing Rules ────────────────────────────────────────────────
+routing:
+  default_collection: "vista"            # Collection for unmatched files
+  source_suffix: "-source"               # Auto-suffix for source-code groups
+  rules:
+    - name: source-code
+      file_group: ["mumps-source", "general-source", "mumps-globals"]
+      collection: vista-source
+
+# ─── Queue Settings ───────────────────────────────────────────────
+# queue:
+#   batch_size: 1000                     # Items per batch file
+#   lease_timeout: 600                   # Seconds before stale claim reclaim
+
+# ─── Processing Settings ──────────────────────────────────────────
+# processing:
+#   max_file_size: 52428800              # 50 MB — skip larger files
+#   max_source_size: 10485760            # 10 MB — skip source code larger than this
+#   docling_timeout: 600                 # Subprocess timeout for docling conversion
+#   per_file_timeout: 600                # Overall per-file processing timeout
+#   image_min_size: 51200                # 50 KB — skip smaller images from OCR
+#   max_pages: 500                       # Max pages for docling extraction
+#   retry_max: 3                         # Max retry attempts per file
+#   memory_threshold_mb: 4096            # Runner RSS limit (4 GB)
+#   malloc_arena_max: 2                  # MALLOC_ARENA_MAX setting
+#   archive_depth: 2                     # Max recursive archive expansion depth
+#   summary_interval: 100                # Log summary every N files
+
+# ─── Embedding Settings ───────────────────────────────────────────
+# embedding:
+#   model: "sentence-transformers/all-MiniLM-L6-v2"
+#   vector_size: 384
+#   vector_name: "fast-all-minilm-l6-v2"
+#   max_tokens: 512
+
+# ─── Kubernetes Settings (optional) ───────────────────────────────
+# kubernetes:
+#   namespace: ""                        # Default: auto-detect from pod
+#   service_account: ""                  # Default: auto-detect from pod
+#   image: ""                            # Default: auto-detect from pod
+#   image_pull_policy: "IfNotPresent"
+#   runner_resources:
+#     requests:
+#       cpu: "500m"
+#       memory: "2Gi"
+#     limits:
+#       cpu: "2"
+#       memory: "4Gi"
+#   max_parallelism: 10
+#   node_selector: {}
+#   tolerations: []
+#   backoff_limit: 3
+#   ttl_seconds_after_finished: 3600

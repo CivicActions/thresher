@@ -15,5 +15,5 @@ build/
 # OS
 .DS_Store
 
-# Temporary: old source code (will be moved before implementation)
-src/
+# Legacy code archive (reference only)
+_archive/
