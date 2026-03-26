@@ -156,7 +156,11 @@ def _deep_set(d: dict[str, Any], dotted_path: str, value: str) -> None:
 def _merge_configs(defaults: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
     """Shallow merge: user top-level sections override defaults.
 
-    file_type_groups: merge by name (user replaces same-name groups).
+    file_type_groups: merge by group name — user-defined groups with the same
+    name completely replace the built-in group (FR-026); unmentioned built-in
+    groups are preserved.  The ``{**default_val, **user_val}`` dict merge
+    achieves this because each group name maps to a complete group dict.
+
     Other sections: user keys override, default keys preserved.
     """
     merged: dict[str, Any] = {}
