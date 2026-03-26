@@ -12,8 +12,9 @@ from thresher.embedder import Embedder
 from thresher.processing.router import Router
 from thresher.providers.destination import DestinationProvider
 from thresher.providers.source import SourceProvider
+from thresher.runner.memory_monitor import check_memory, gc_between_files
 from thresher.runner.processor import FileProcessor
-from thresher.types import ProcessingResult, ProcessingStatus
+from thresher.types import ProcessingResult, ProcessingStatus, QueueBatch, QueueItem
 
 logger = logging.getLogger("thresher.runner.loop")
 
@@ -49,6 +50,7 @@ class RunnerLoop:
         )
 
         self.results: list[ProcessingResult] = []
+        self._memory_exceeded = False
 
     def run(self) -> list[ProcessingResult]:
         """Run the main processing loop until no more batches available."""
@@ -56,7 +58,10 @@ class RunnerLoop:
 
         logger.info("Runner %s starting", self.runner_id)
 
-        while True:
+        while not self._memory_exceeded:
+            # Reclaim stale batches before trying to claim a new one
+            self.reclaim_stale_batches(queue_prefix)
+
             batch_path = self._claim_next_batch(queue_prefix)
             if batch_path is None:
                 logger.info("No more batches available")
@@ -64,12 +69,54 @@ class RunnerLoop:
 
             self._process_batch(batch_path, queue_prefix)
 
-        logger.info(
-            "Runner %s finished: %d files processed",
-            self.runner_id,
-            len(self.results),
-        )
+        if self._memory_exceeded:
+            logger.warning(
+                "Runner %s exiting: memory threshold (%d MB) exceeded",
+                self.runner_id,
+                self.config.processing.memory_threshold_mb,
+            )
+
+        self._print_summary()
         return self.results
+
+    # -- stale batch reclaim (T027) -----------------------------------------
+
+    def reclaim_stale_batches(self, queue_prefix: str) -> int:
+        """Move stale claimed batches back to pending. Returns count reclaimed."""
+        claimed_prefix = f"{queue_prefix}claimed/"
+        now = time.time()
+        lease_timeout = self.config.queue.lease_timeout
+        reclaimed = 0
+
+        for file_info in self.source.list_files(prefix=claimed_prefix):
+            try:
+                data = self.source.download_content(file_info.path)
+                batch = deserialize_batch(data.decode("utf-8"))
+
+                claimed_at = batch.claimed_at or 0.0
+                if claimed_at + lease_timeout >= now:
+                    continue
+
+                # Reset batch for re-processing
+                batch.claimed_at = None
+                batch.runner_id = None
+                for item in batch.items:
+                    if item.status == "processing":
+                        item.status = "pending"
+
+                pending_path = f"{queue_prefix}pending/{batch.batch_id}.json"
+                pending_data = _serialize_batch(batch).encode("utf-8")
+                self.source.upload_content(pending_path, pending_data)
+                self.source.delete(file_info.path)
+
+                reclaimed += 1
+                logger.info("Reclaimed stale batch %s", batch.batch_id)
+            except Exception as exc:
+                logger.warning("Error reclaiming %s: %s", file_info.path, exc)
+
+        return reclaimed
+
+    # -- claiming -----------------------------------------------------------
 
     def _claim_next_batch(self, queue_prefix: str) -> str | None:
         """Try to claim a pending batch via atomic conditional create."""
@@ -114,12 +161,20 @@ class RunnerLoop:
 
         return None
 
+    # -- batch processing (T026, T029, T030) --------------------------------
+
     def _process_batch(self, batch_path: str, queue_prefix: str) -> None:
         """Process all items in a claimed batch."""
         data = self.source.download_content(batch_path).decode("utf-8")
         batch = deserialize_batch(data)
 
+        retry_items: list[QueueItem] = []
+        failed_items: list[QueueItem] = []
+
         for item in batch.items:
+            if self._memory_exceeded:
+                break
+
             if item.status in ("complete", "permanently-failed"):
                 continue
 
@@ -136,8 +191,30 @@ class RunnerLoop:
                 item.status = "complete"
                 item.completed_at = time.time()
             else:
-                item.status = "failed"
                 item.last_error = result.error_message
+                if item.attempt_count >= self.config.processing.retry_max:
+                    item.status = "permanently-failed"
+                    failed_items.append(item)
+                else:
+                    item.status = "failed"
+                    retry_items.append(item)
+
+            # Memory check after each file
+            gc_between_files()
+            if check_memory(self.config.processing.memory_threshold_mb):
+                self._memory_exceeded = True
+
+        # Write retry batch
+        if retry_items:
+            self._write_sub_batch(
+                queue_prefix, "retry", batch.batch_id, batch.created_at, retry_items
+            )
+
+        # Write permanently-failed batch
+        if failed_items:
+            self._write_sub_batch(
+                queue_prefix, "failed", batch.batch_id, batch.created_at, failed_items
+            )
 
         # Move batch to done
         done_path = f"{queue_prefix}done/{batch.batch_id}.json"
@@ -146,3 +223,42 @@ class RunnerLoop:
         self.source.delete(batch_path)
 
         logger.info("Completed batch %s", batch.batch_id)
+
+    # -- helpers ------------------------------------------------------------
+
+    def _write_sub_batch(
+        self,
+        queue_prefix: str,
+        sub_dir: str,
+        batch_id: str,
+        created_at: float,
+        items: list[QueueItem],
+    ) -> None:
+        """Write a list of QueueItems to queue/{sub_dir}/{batch_id}.json."""
+        sub_batch = QueueBatch(
+            batch_id=batch_id,
+            created_at=created_at,
+            item_count=len(items),
+            items=items,
+        )
+        path = f"{queue_prefix}{sub_dir}/{batch_id}.json"
+        self.source.upload_content(path, _serialize_batch(sub_batch).encode("utf-8"))
+        logger.info("Wrote %d items to %s", len(items), path)
+
+    # -- summary reporting (T031) -------------------------------------------
+
+    def _print_summary(self) -> None:
+        """Log a summary of processing results."""
+        indexed = sum(1 for r in self.results if r.status == ProcessingStatus.INDEXED)
+        skipped = sum(1 for r in self.results if r.status == ProcessingStatus.SKIPPED)
+        failed = sum(1 for r in self.results if r.status == ProcessingStatus.FAILED)
+        total_duration = sum(r.duration_seconds for r in self.results)
+
+        logger.info(
+            "Runner %s summary: %d indexed, %d skipped, %d failed, %.1fs total",
+            self.runner_id,
+            indexed,
+            skipped,
+            failed,
+            total_duration,
+        )
