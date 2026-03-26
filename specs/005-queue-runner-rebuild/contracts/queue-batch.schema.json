@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Queue Batch File",
+  "description": "Schema for queue batch files stored on the source provider (FR-021, FR-022)",
+  "type": "object",
+  "required": ["batch_id", "created_at", "item_count", "items"],
+  "properties": {
+    "batch_id": {
+      "type": "string",
+      "description": "Unique batch identifier (e.g., 'batch-0001')",
+      "pattern": "^batch-\\d{4,}$"
+    },
+    "created_at": {
+      "type": "number",
+      "description": "Unix timestamp of batch creation"
+    },
+    "claimed_at": {
+      "type": "number",
+      "description": "Unix timestamp when claimed by a runner (set during claim)"
+    },
+    "runner_id": {
+      "type": "string",
+      "description": "ID of the runner that claimed this batch"
+    },
+    "item_count": {
+      "type": "integer",
+      "description": "Number of items in this batch",
+      "minimum": 1
+    },
+    "items": {
+      "type": "array",
+      "description": "Queue items in this batch",
+      "items": {
+        "$ref": "#/definitions/QueueItem"
+      }
+    }
+  },
+  "definitions": {
+    "QueueItem": {
+      "type": "object",
+      "required": ["path", "source_type", "status", "attempt_count"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Source provider path to the file",
+          "minLength": 1
+        },
+        "source_type": {
+          "type": "string",
+          "description": "How the file entered the queue",
+          "enum": ["direct", "expanded"]
+        },
+        "archive_path": {
+          "type": "string",
+          "description": "Original archive path (required if source_type is 'expanded')"
+        },
+        "file_type_group": {
+          "type": "string",
+          "description": "Pre-classified file type group name from controller scan"
+        },
+        "file_size": {
+          "type": "integer",
+          "description": "File size in bytes",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "description": "Current processing status",
+          "enum": ["pending", "processing", "complete", "failed", "permanently-failed"]
+        },
+        "attempt_count": {
+          "type": "integer",
+          "description": "Number of processing attempts",
+          "minimum": 0
+        },
+        "last_error": {
+          "type": "string",
+          "description": "Error message from last failed attempt"
+        },
+        "completed_at": {
+          "type": "number",
+          "description": "Unix timestamp when processing completed"
+        }
+      }
+    }
+  }
+}

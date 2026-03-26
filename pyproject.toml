@@ -1,0 +1,33 @@
+[project]
+name = "thresher"
+version = "0.1.0"
+description = "Cloud native document extraction and indexing pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "docling[asr]>=2.0.0",
+    "docling-core[chunking]",
+    "google-cloud-storage>=2.0.0",
+    "qdrant-client[fastembed]>=1.12.0"
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "$version"
+version_scheme = "pep440"
+version_provider = "uv"
+update_changelog_on_bump = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[dependency-groups]
+dev = [
+    "prek>=0.3.8",
+    "ruff>=0.15.7",
+    "ty>=0.0.25",
+]
