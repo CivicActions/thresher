@@ -9,6 +9,7 @@ dependencies = [
     "docling>=2.0.0",
     "docling-core[chunking]",
     "google-cloud-storage>=2.0.0",
+    "jsonschema>=4.26.0",
     "kubernetes>=28.0.0",
     "python-magic>=0.4.27",
     "pyyaml>=6.0",

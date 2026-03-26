@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 from dataclasses import dataclass, field
 from importlib.resources import files
@@ -12,6 +14,8 @@ import yaml
 
 from thresher.types import ChunkerConfig, FileTypeGroup, RoutingRule
 from thresher.url_resolver import UrlResolverConfig, parse_url_resolvers
+
+logger = logging.getLogger("thresher.config")
 
 
 @dataclass
@@ -396,6 +400,28 @@ def _build_config(raw: dict[str, Any]) -> Config:
     )
 
 
+def validate_config(merged: dict) -> list[str]:
+    """Validate a merged config dict against the JSON Schema.
+
+    Returns a list of validation error messages (empty if valid).
+    """
+    try:
+        import jsonschema
+    except ImportError:
+        logger.debug("jsonschema not installed — skipping config validation")
+        return []
+
+    schema_path = Path(__file__).parent / "config_schema.json"
+    if not schema_path.exists():
+        logger.debug("Config schema not found at %s", schema_path)
+        return []
+
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    errors = sorted(validator.iter_errors(merged), key=lambda e: list(e.absolute_path))
+    return [f"{'.'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}" for e in errors]
+
+
 def load_config(config_path: str | Path | None = None) -> Config:
     """Load configuration with three-layer merge.
 
@@ -418,6 +444,11 @@ def load_config(config_path: str | Path | None = None) -> Config:
 
     # Layer 3: env overrides
     _apply_env_overrides(merged)
+
+    # Validate against schema
+    errors = validate_config(merged)
+    for err in errors:
+        logger.warning("Config validation: %s", err)
 
     # Build and return
     return _build_config(merged)

@@ -1,0 +1,474 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/thresher/config-schema",
+  "title": "Thresher Configuration",
+  "description": "Schema for Thresher pipeline YAML configuration files.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "type": "object",
+      "description": "Source provider configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Source provider type.",
+          "enum": [
+            "gcs"
+          ],
+          "default": "gcs"
+        },
+        "gcs": {
+          "type": "object",
+          "description": "Google Cloud Storage settings.",
+          "additionalProperties": false,
+          "properties": {
+            "bucket": {
+              "type": "string",
+              "description": "GCS bucket name."
+            },
+            "source_prefix": {
+              "type": "string",
+              "default": ""
+            },
+            "expanded_prefix": {
+              "type": "string",
+              "default": "expanded/"
+            },
+            "cache_prefix": {
+              "type": "string",
+              "default": "cache/"
+            },
+            "queue_prefix": {
+              "type": "string",
+              "default": "queue/"
+            }
+          }
+        }
+      }
+    },
+    "destination": {
+      "type": "object",
+      "description": "Destination provider configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Destination provider type.",
+          "enum": [
+            "qdrant"
+          ],
+          "default": "qdrant"
+        },
+        "qdrant": {
+          "type": "object",
+          "description": "Qdrant vector database settings.",
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string",
+              "default": "http://localhost:6333"
+            },
+            "api_key": {
+              "type": "string",
+              "default": ""
+            },
+            "timeout": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 60
+            },
+            "batch_size": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 100
+            }
+          }
+        }
+      }
+    },
+    "file_type_groups": {
+      "type": "object",
+      "description": "File type group definitions. Keys are group names.",
+      "patternProperties": {
+        "^[a-zA-Z0-9_-]+$": {
+          "type": "object",
+          "description": "A file type group definition.",
+          "additionalProperties": false,
+          "properties": {
+            "extensions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\."
+              },
+              "description": "File extensions (with leading dot)."
+            },
+            "mime_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "MIME type prefixes for content-based matching."
+            },
+            "detectors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Custom content detector names."
+            },
+            "priority": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Classification priority (lower = checked first).",
+              "default": 100
+            },
+            "extractor": {
+              "type": "string",
+              "description": "Extraction strategy.",
+              "enum": [
+                "docling",
+                "raw-text",
+                "skip"
+              ],
+              "default": "raw-text"
+            },
+            "chunker": {
+              "type": "object",
+              "description": "Chunking configuration.",
+              "additionalProperties": false,
+              "properties": {
+                "strategy": {
+                  "type": "string",
+                  "description": "Chunking strategy.",
+                  "enum": [
+                    "docling-hybrid",
+                    "chonkie-code",
+                    "chonkie-recursive",
+                    "mumps-label-boundary",
+                    "skip"
+                  ]
+                },
+                "chunk_size": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 512
+                },
+                "language": {
+                  "type": "string",
+                  "description": "Language hint for code chunking.",
+                  "default": "auto"
+                },
+                "recipe": {
+                  "type": "string",
+                  "description": "Chunking recipe (e.g. 'markdown').",
+                  "default": ""
+                }
+              },
+              "required": [
+                "strategy"
+              ]
+            },
+            "max_file_size": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Max file size in bytes (0 = no limit).",
+              "default": 0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "routing": {
+      "type": "object",
+      "description": "Collection routing configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "default_collection": {
+          "type": "string",
+          "description": "Collection for files not matching any rule.",
+          "default": "default"
+        },
+        "rules": {
+          "type": "array",
+          "description": "Routing rules evaluated in order (first match wins).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "collection"
+            ],
+            "properties": {
+              "collection": {
+                "type": "string",
+                "description": "Target collection name."
+              },
+              "name": {
+                "type": "string",
+                "description": "Human-readable rule name."
+              },
+              "file_group": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "File type group names to match."
+              },
+              "path": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Path prefixes to match."
+              },
+              "filename": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Filename glob patterns to match."
+              }
+            }
+          }
+        }
+      }
+    },
+    "queue": {
+      "type": "object",
+      "description": "Queue management settings.",
+      "additionalProperties": false,
+      "properties": {
+        "batch_size": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1000
+        },
+        "lease_timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Seconds before stale claim is reclaimed.",
+          "default": 600
+        }
+      }
+    },
+    "processing": {
+      "type": "object",
+      "description": "File processing settings.",
+      "additionalProperties": false,
+      "properties": {
+        "docling_timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 600
+        },
+        "per_file_timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 600
+        },
+        "image_min_size": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum image size in bytes for OCR.",
+          "default": 51200
+        },
+        "max_pages": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 500
+        },
+        "retry_max": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 3
+        },
+        "memory_threshold_mb": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 4096
+        },
+        "malloc_arena_max": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2
+        },
+        "archive_depth": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Max recursive archive expansion depth.",
+          "default": 2
+        },
+        "summary_interval": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 100
+        },
+        "archive_exclude_extensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^\\."
+          },
+          "description": "Archive extensions to never expand (e.g. .jar, .war).",
+          "default": [
+            ".jar",
+            ".war",
+            ".whl",
+            ".egg",
+            ".apk",
+            ".ipa"
+          ]
+        }
+      }
+    },
+    "embedding": {
+      "type": "object",
+      "description": "Embedding model settings.",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "default": "sentence-transformers/all-MiniLM-L6-v2"
+        },
+        "vector_size": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 384
+        },
+        "vector_name": {
+          "type": "string",
+          "default": "fast-all-minilm-l6-v2"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 512
+        }
+      }
+    },
+    "kubernetes": {
+      "type": "object",
+      "description": "Kubernetes orchestration settings.",
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "default": ""
+        },
+        "service_account": {
+          "type": "string",
+          "default": ""
+        },
+        "image": {
+          "type": "string",
+          "default": ""
+        },
+        "image_pull_policy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ],
+          "default": "IfNotPresent"
+        },
+        "runner_resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "max_parallelism": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10
+        },
+        "node_selector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Kubernetes node selector labels."
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Kubernetes pod tolerations."
+        },
+        "backoff_limit": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 3
+        },
+        "ttl_seconds_after_finished": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 3600
+        }
+      }
+    },
+    "url_resolvers": {
+      "type": "array",
+      "description": "Chain of URL resolvers tried in order.",
+      "items": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "httrack",
+              "pattern",
+              "domain-first"
+            ],
+            "description": "Resolver type."
+          },
+          "match": {
+            "type": "string",
+            "description": "Regex pattern (for 'pattern' type)."
+          },
+          "template": {
+            "type": "string",
+            "description": "URL template with {1}, {2} group refs."
+          },
+          "strip_prefix": {
+            "type": "string",
+            "description": "Prefix to strip before matching."
+          }
+        }
+      }
+    }
+  }
+}
