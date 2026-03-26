@@ -131,24 +131,28 @@ def file_type_groups():
             extensions=[".m"],
             extractor="raw-text",
             chunker=ChunkerConfig(strategy="mumps-label-boundary", chunk_size=512),
+            max_file_size=500,
         ),
         "source-code": FileTypeGroup(
             name="source-code",
             extensions=[".py", ".js"],
             extractor="raw-text",
             chunker=ChunkerConfig(strategy="chonkie-code", chunk_size=512),
+            max_file_size=500,
         ),
         "documents": FileTypeGroup(
             name="documents",
             extensions=[".pdf"],
             extractor="docling",
             chunker=ChunkerConfig(strategy="docling-hybrid", chunk_size=512),
+            max_file_size=1000,
         ),
         "markdown": FileTypeGroup(
             name="markdown",
             extensions=[".md"],
             extractor="raw-text",
             chunker=ChunkerConfig(strategy="chonkie-recursive", chunk_size=512),
+            max_file_size=1000,
         ),
     }
 
@@ -167,15 +171,11 @@ def config(file_type_groups):
     cfg.file_type_groups = file_type_groups
     cfg.routing = RoutingConfig(
         default_collection="vista",
-        source_suffix="-source",
         rules=[],
     )
     cfg.embedding = EmbeddingConfig(vector_size=384, vector_name="test-vec")
     cfg.queue = QueueConfig(batch_size=1000)
-    cfg.processing = ProcessingConfig(
-        max_file_size=1000,
-        max_source_size=500,
-    )
+    cfg.processing = ProcessingConfig()
     return cfg
 
 
@@ -209,11 +209,11 @@ def mock_router():
 class TestFileSizeThreshold:
     """Tests for file size threshold enforcement in process_file."""
 
-    def test_source_file_over_max_source_size_is_skipped(
+    def test_source_file_over_group_limit_is_skipped(
         self, mock_source, mock_destination, mock_embedder, mock_router, config
     ):
-        """Source files (mumps) exceeding max_source_size should be SKIPPED."""
-        # 501 bytes exceeds max_source_size of 500
+        """Source files (mumps) exceeding group max_file_size should be SKIPPED."""
+        # 501 bytes exceeds mumps group max_file_size of 500
         mock_source.download_content.return_value = b"x" * 501
 
         processor = FileProcessor(
@@ -230,10 +230,10 @@ class TestFileSizeThreshold:
         assert result.file_type_group == "mumps"
         mock_destination.index_chunks.assert_not_called()
 
-    def test_code_file_over_max_source_size_is_skipped(
+    def test_code_file_over_group_limit_is_skipped(
         self, mock_source, mock_destination, mock_embedder, mock_router, config
     ):
-        """Code files (chonkie-code) exceeding max_source_size should be SKIPPED."""
+        """Code files (chonkie-code) exceeding group max_file_size should be SKIPPED."""
         mock_source.download_content.return_value = b"x" * 501
 
         processor = FileProcessor(
@@ -249,11 +249,11 @@ class TestFileSizeThreshold:
         assert result.status == ProcessingStatus.SKIPPED
         assert result.file_type_group == "source-code"
 
-    def test_document_over_max_file_size_is_skipped(
+    def test_document_over_group_limit_is_skipped(
         self, mock_source, mock_destination, mock_embedder, mock_router, config
     ):
-        """Document files exceeding max_file_size should be SKIPPED."""
-        # 1001 bytes exceeds max_file_size of 1000
+        """Document files exceeding group max_file_size should be SKIPPED."""
+        # 1001 bytes exceeds documents group max_file_size of 1000
         mock_source.download_content.return_value = b"x" * 1001
 
         processor = FileProcessor(
@@ -273,7 +273,7 @@ class TestFileSizeThreshold:
     def test_source_file_under_threshold_passes(
         self, mock_source, mock_destination, mock_embedder, mock_router, config
     ):
-        """Source file under max_source_size should proceed to processing."""
+        """Source file under group max_file_size should proceed to processing."""
         # 500 bytes is exactly at the limit (not over), should pass
         mock_source.download_content.return_value = b"HELLO ; routine\n Q\n"
 
@@ -306,7 +306,7 @@ class TestFileSizeThreshold:
     def test_document_under_threshold_passes(
         self, mock_source, mock_destination, mock_embedder, mock_router, config
     ):
-        """Document file under max_file_size should proceed to processing."""
+        """Document file under group max_file_size should proceed to processing."""
         mock_source.download_content.return_value = b"x" * 999
 
         processor = FileProcessor(
@@ -335,11 +335,11 @@ class TestFileSizeThreshold:
 
         assert result.status == ProcessingStatus.INDEXED
 
-    def test_markdown_uses_max_file_size_not_source_size(
+    def test_markdown_no_limit_when_zero(
         self, mock_source, mock_destination, mock_embedder, mock_router, config
     ):
-        """Markdown (raw-text + chonkie-recursive) uses max_file_size, not max_source_size."""
-        # 600 bytes: exceeds max_source_size (500) but not max_file_size (1000)
+        """Markdown with max_file_size=1000 allows files under that limit."""
+        # 600 bytes: under markdown group max_file_size of 1000
         mock_source.download_content.return_value = b"x" * 600
 
         processor = FileProcessor(

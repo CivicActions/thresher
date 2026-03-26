@@ -22,24 +22,20 @@ class Router:
         self,
         rules: list[RoutingRule],
         default_collection: str = "vista",
-        source_suffix: str = "-source",
     ):
         self.rules = rules
         self.default_collection = default_collection
-        self.source_suffix = source_suffix
 
     def route(
         self,
         file_path: str,
         file_type_group: str | None = None,
-        is_source: bool = False,
     ) -> str:
         """Determine the target collection for a file.
 
         Args:
             file_path: Source provider path to the file
             file_type_group: Classified file type group name
-            is_source: Whether this is a source code file type group
 
         Returns:
             Target collection name
@@ -49,10 +45,6 @@ class Router:
         for rule in self.rules:
             if self._matches_rule(rule, file_path, filename, file_type_group):
                 return rule.collection
-
-        # Default routing: source code groups get source suffix
-        if is_source and self.source_suffix:
-            return f"{self.default_collection}{self.source_suffix}"
 
         return self.default_collection
 

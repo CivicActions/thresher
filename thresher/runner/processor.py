@@ -68,8 +68,6 @@ class FileProcessor:
         self.embedder = embedder
         self.router = router
         self.config = config
-        # Determine source-code group names for routing
-        self._source_groups = _get_source_group_names(config.file_type_groups)
 
     def process_file(self, file_path: str, file_type_group: str | None = None) -> ProcessingResult:
         """Process a single file through classify -> extract -> chunk -> embed -> index."""
@@ -102,24 +100,15 @@ class FileProcessor:
                         file_type_group=group_name,
                     )
 
-                # 2b. Check file size thresholds
+                # 2b. Check file size threshold (per-group)
                 file_size = len(content)
-                is_source_file = group.extractor == "raw-text" and group.chunker.strategy in (
-                    "chonkie-code",
-                    "mumps-label-boundary",
-                )
-                size_limit = (
-                    self.config.processing.max_source_size
-                    if is_source_file
-                    else self.config.processing.max_file_size
-                )
-                if file_size > size_limit:
+                if group.max_file_size > 0 and file_size > group.max_file_size:
                     logger.warning(
-                        "Skipping %s: size %d exceeds %s limit %d",
+                        "Skipping %s: size %d exceeds group %s limit %d",
                         file_path,
                         file_size,
-                        "source" if is_source_file else "file",
-                        size_limit,
+                        group_name,
+                        group.max_file_size,
                     )
                     return ProcessingResult(
                         path=file_path,
@@ -129,8 +118,7 @@ class FileProcessor:
                     )
 
                 # 3. Route to collection
-                is_source = group_name in self._source_groups
-                collection = self.router.route(file_path, group_name, is_source)
+                collection = self.router.route(file_path, group_name)
 
                 # Ensure collection exists
                 self.destination.ensure_collection(
@@ -265,15 +253,6 @@ class FileProcessor:
                 error_message=str(e),
                 file_type_group=file_type_group,
             )
-
-
-def _get_source_group_names(groups: dict[str, FileTypeGroup]) -> set[str]:
-    """Determine which groups are source-code groups (use raw-text extractor)."""
-    return {
-        name
-        for name, g in groups.items()
-        if g.extractor == "raw-text" and g.chunker.strategy != "chonkie-recursive"
-    }
 
 
 def _extract(

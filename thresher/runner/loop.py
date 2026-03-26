@@ -38,7 +38,6 @@ class RunnerLoop:
         router = Router(
             rules=config.routing.rules,
             default_collection=config.routing.default_collection,
-            source_suffix=config.routing.source_suffix,
         )
 
         self.processor = FileProcessor(

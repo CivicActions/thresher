@@ -1,6 +1,7 @@
 # Built-in file type group defaults for Thresher
 # These are merged with user configuration — user groups with the same name
 # completely replace the built-in group.
+# max_file_size: 0 means no limit; set per group to skip oversized files.
 
 file_type_groups:
   office-documents:
@@ -11,6 +12,7 @@ file_type_groups:
       strategy: docling-hybrid
       chunk_size: 512
     priority: 50
+    max_file_size: 52428800  # 50 MB
 
   mumps-source:
     extensions: [".m", ".ro"]
@@ -20,6 +22,7 @@ file_type_groups:
       strategy: mumps-label-boundary
       chunk_size: 512
     priority: 30
+    max_file_size: 10485760  # 10 MB
 
   mumps-globals:
     extensions: [".zwr"]
@@ -29,6 +32,7 @@ file_type_groups:
       strategy: mumps-label-boundary
       chunk_size: 512
     priority: 30
+    max_file_size: 10485760  # 10 MB
 
   general-source:
     extensions:
@@ -66,6 +70,7 @@ file_type_groups:
       chunk_size: 512
       language: auto
     priority: 60
+    max_file_size: 10485760  # 10 MB
 
   data-files:
     extensions: [".json", ".xml", ".csv", ".tsv", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".properties"]
@@ -74,6 +79,7 @@ file_type_groups:
       strategy: chonkie-recursive
       chunk_size: 512
     priority: 70
+    max_file_size: 52428800  # 50 MB
 
   images:
     extensions: [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".svg"]
@@ -83,6 +89,7 @@ file_type_groups:
       strategy: docling-hybrid
       chunk_size: 512
     priority: 80
+    max_file_size: 52428800  # 50 MB
 
   plain-text:
     extensions: [".txt", ".md", ".rst", ".log", ".readme"]
@@ -93,6 +100,7 @@ file_type_groups:
       chunk_size: 512
       recipe: markdown
     priority: 90
+    max_file_size: 52428800  # 50 MB
 
   binary:
     mime_types: ["application/octet-stream"]

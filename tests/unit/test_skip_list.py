@@ -112,7 +112,6 @@ def processor_config(file_type_groups):
     cfg.file_type_groups = file_type_groups
     cfg.routing = RoutingConfig(
         default_collection="vista",
-        source_suffix="-source",
         rules=[],
     )
     cfg.embedding = EmbeddingConfig(vector_size=384, vector_name="test-vec")

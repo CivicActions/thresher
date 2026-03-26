@@ -43,6 +43,7 @@ class FileTypeGroup:
     chunker: ChunkerConfig = field(
         default_factory=lambda: ChunkerConfig(strategy="chonkie-recursive")
     )
+    max_file_size: int = 0  # 0 = no limit
 
 
 @dataclass

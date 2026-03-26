@@ -85,7 +85,6 @@ class TestLoadDefaults:
     def test_default_routing(self):
         cfg = load_config()
         assert cfg.routing.default_collection == "vista"
-        assert cfg.routing.source_suffix == "-source"
         assert cfg.routing.rules == []
 
 
@@ -147,11 +146,11 @@ class TestUserConfigOverride:
             tmp_path,
             """\
             processing:
-              max_file_size: 999
+              docling_timeout: 999
         """,
         )
         cfg = load_config(user_file)
-        assert cfg.processing.max_file_size == 999
+        assert cfg.processing.docling_timeout == 999
         # Unmentioned defaults preserved
         assert len(cfg.file_type_groups) == 8
         assert cfg.destination.qdrant.url == "http://localhost:6333"

@@ -10,7 +10,6 @@ def _make_router(rules: list[RoutingRule] | None = None) -> Router:
     return Router(
         rules=rules or [],
         default_collection="vista",
-        source_suffix="-source",
     )
 
 
@@ -19,18 +18,23 @@ class TestDefaultRouting:
         router = _make_router()
         assert router.route("docs/file.pdf") == "vista"
 
-    def test_source_flag_appends_suffix(self):
-        router = _make_router()
-        assert router.route("src/main.py", is_source=True) == "vista-source"
+    def test_source_routing_via_rule(self):
+        rules = [
+            RoutingRule(
+                collection="vista-source",
+                file_group=["mumps-source", "general-source"],
+            )
+        ]
+        router = _make_router(rules)
+        assert router.route("src/main.py", file_type_group="general-source") == "vista-source"
 
-    def test_source_without_suffix_config(self):
-        router = Router(rules=[], default_collection="vista", source_suffix="")
-        assert router.route("src/main.py", is_source=True) == "vista"
+    def test_no_source_rule_uses_default(self):
+        router = _make_router()
+        assert router.route("src/main.py", file_type_group="general-source") == "vista"
 
     def test_custom_default_collection(self):
-        router = Router(rules=[], default_collection="custom", source_suffix="-src")
+        router = Router(rules=[], default_collection="custom")
         assert router.route("file.txt") == "custom"
-        assert router.route("file.py", is_source=True) == "custom-src"
 
 
 class TestFirstMatchWins:

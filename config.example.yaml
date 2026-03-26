@@ -28,6 +28,7 @@ destination:
 # User-defined groups merge with built-in defaults (defaults.yaml).
 # Same-name groups replace the built-in entirely.
 # Unmentioned built-in groups are preserved.
+# max_file_size: 0 means no limit; set per group to skip oversized files.
 #
 # file_type_groups:
 #   custom-group:
@@ -36,12 +37,15 @@ destination:
 #     chunker:
 #       strategy: chonkie-recursive
 #       chunk_size: 512
+#     max_file_size: 10485760              # 10 MB
 
 # ─── Routing Rules ────────────────────────────────────────────────
+# Rules are evaluated in declaration order (first-match-wins).
+# Within a rule, criteria types are ANDed; values within each are ORed.
 routing:
   default_collection: "vista"            # Collection for unmatched files
-  source_suffix: "-source"               # Auto-suffix for source-code groups
   rules:
+    # Example: route source code groups to a separate collection
     - name: source-code
       file_group: ["mumps-source", "general-source", "mumps-globals"]
       collection: vista-source
@@ -53,8 +57,6 @@ routing:
 
 # ─── Processing Settings ──────────────────────────────────────────
 # processing:
-#   max_file_size: 52428800              # 50 MB — skip larger files
-#   max_source_size: 10485760            # 10 MB — skip source code larger than this
 #   docling_timeout: 600                 # Subprocess timeout for docling conversion
 #   per_file_timeout: 600                # Overall per-file processing timeout
 #   image_min_size: 51200                # 50 KB — skip smaller images from OCR

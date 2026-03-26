@@ -45,7 +45,6 @@ class DestConfig:
 @dataclass
 class RoutingConfig:
     default_collection: str = "vista"
-    source_suffix: str = "-source"
     rules: list[RoutingRule] = field(default_factory=list)
 
 
@@ -57,8 +56,6 @@ class QueueConfig:
 
 @dataclass
 class ProcessingConfig:
-    max_file_size: int = 52_428_800  # 50 MB
-    max_source_size: int = 10_485_760  # 10 MB
     docling_timeout: int = 600
     per_file_timeout: int = 600
     image_min_size: int = 51_200  # 50 KB
@@ -215,6 +212,7 @@ def _parse_file_type_groups(raw: dict[str, Any] | None) -> dict[str, FileTypeGro
             priority=spec.get("priority", 100),
             extractor=spec.get("extractor", "raw-text"),
             chunker=chunker,
+            max_file_size=spec.get("max_file_size", 0),
         )
     return groups
 
@@ -292,11 +290,6 @@ def _build_config(raw: dict[str, Any]) -> Config:
                 if isinstance(routing_raw, dict)
                 else "vista"
             ),
-            source_suffix=str(
-                routing_raw.get("source_suffix", "-source")
-                if isinstance(routing_raw, dict)
-                else "-source"
-            ),
             rules=routing_rules,
         ),
         queue=QueueConfig(
@@ -308,16 +301,6 @@ def _build_config(raw: dict[str, Any]) -> Config:
             ),
         ),
         processing=ProcessingConfig(
-            max_file_size=int(
-                proc_raw.get("max_file_size", 52_428_800)
-                if isinstance(proc_raw, dict)
-                else 52_428_800
-            ),
-            max_source_size=int(
-                proc_raw.get("max_source_size", 10_485_760)
-                if isinstance(proc_raw, dict)
-                else 10_485_760
-            ),
             docling_timeout=int(
                 proc_raw.get("docling_timeout", 600) if isinstance(proc_raw, dict) else 600
             ),
