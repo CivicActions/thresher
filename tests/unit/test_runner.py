@@ -295,7 +295,7 @@ class TestDispatchChunker:
         mock_chunker.assert_called_once()
 
     def test_chonkie_code_falls_back_to_recursive(self):
-        """chonkie-code falls back to recursive chunker."""
+        """chonkie-code dispatches to chunk_code."""
         group = FileTypeGroup(
             name="source-code",
             chunker=ChunkerConfig(
@@ -305,7 +305,7 @@ class TestDispatchChunker:
         )
 
         with patch(
-            "thresher.processing.chunkers.chonkie_recursive.chunk_with_recursive",
+            "thresher.processing.chunkers.chonkie_code.chunk_code",
             return_value=[{"text": "chunk"}],
         ) as mock_chunker:
             result = dispatch_chunker("def foo(): pass", group)
