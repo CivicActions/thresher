@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 
 from thresher.config import Config
@@ -11,6 +12,34 @@ from thresher.providers.source import SourceProvider
 from thresher.types import FileInfo
 
 logger = logging.getLogger("thresher.controller.scanner")
+
+
+def _load_skip_list(source: SourceProvider, queue_prefix: str) -> set[str]:
+    """Load the skip list from ``{queue_prefix}skip-list.json``."""
+    path = f"{queue_prefix}skip-list.json"
+    if not source.exists(path):
+        return set()
+    try:
+        data = source.download_content(path)
+        paths = json.loads(data.decode("utf-8"))
+        return set(paths)
+    except Exception:
+        logger.warning("Could not load skip list at %s; starting fresh", path)
+        return set()
+
+
+def _save_skip_list(source: SourceProvider, queue_prefix: str, skip_list: set[str]) -> None:
+    """Save the skip list to ``{queue_prefix}skip-list.json``."""
+    path = f"{queue_prefix}skip-list.json"
+    data = json.dumps(sorted(skip_list)).encode("utf-8")
+    source.upload_content(path, data)
+
+
+def update_skip_list(source: SourceProvider, queue_prefix: str, paths: list[str]) -> None:
+    """Add *paths* to the persistent skip list."""
+    skip_list = _load_skip_list(source, queue_prefix)
+    skip_list.update(paths)
+    _save_skip_list(source, queue_prefix, skip_list)
 
 
 def scan_files(
@@ -23,12 +52,21 @@ def scan_files(
     Archives are expanded and their members are classified individually.
     """
     prefix = config.source.gcs.source_prefix
+    queue_prefix = config.source.gcs.queue_prefix
     items: list[dict] = []
     archives: list[FileInfo] = []
     skipped = 0
 
+    # Load skip list (unless --force)
+    skip_set: set[str] = set()
+    if not config.force:
+        skip_set = _load_skip_list(source, queue_prefix)
+        if skip_set:
+            logger.info("Loaded skip list with %d entries", len(skip_set))
+
     logger.info("Scanning files with prefix: %s", prefix or "(root)")
 
+    skip_list_skipped = 0
     for file_info in source.list_files(prefix=prefix, recursive=True):
         # Skip directories
         if file_info.path.endswith("/"):
@@ -37,6 +75,11 @@ def scan_files(
         # Collect archives for expansion instead of classifying them
         if is_archive(file_info.path):
             archives.append(file_info)
+            continue
+
+        # Skip list check
+        if file_info.path in skip_set:
+            skip_list_skipped += 1
             continue
 
         # Classify without content (extension-only for controller)
@@ -64,6 +107,9 @@ def scan_files(
             max_depth=config.processing.archive_depth,
         )
         for exp in expander.expand_archives(archives):
+            if exp["path"] in skip_set:
+                skip_list_skipped += 1
+                continue
             group = classify_file(exp["path"], config.file_type_groups)
             if group is None:
                 skipped += 1
@@ -78,5 +124,7 @@ def scan_files(
                 }
             )
 
+    if skip_list_skipped:
+        logger.info("Skip list filtered %d previously-processed files", skip_list_skipped)
     logger.info("Scan complete: %d files queued, %d skipped", len(items), skipped)
     return items

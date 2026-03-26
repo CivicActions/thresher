@@ -216,6 +216,13 @@ class RunnerLoop:
                 queue_prefix, "failed", batch.batch_id, batch.created_at, failed_items
             )
 
+        # Update skip list with completed items
+        completed_paths = [item.path for item in batch.items if item.status == "complete"]
+        if completed_paths:
+            from thresher.controller.scanner import update_skip_list
+
+            update_skip_list(self.source, queue_prefix, completed_paths)
+
         # Move batch to done
         done_path = f"{queue_prefix}done/{batch.batch_id}.json"
         done_data = _serialize_batch(batch).encode("utf-8")

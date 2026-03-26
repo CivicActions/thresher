@@ -39,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     # Runner subcommand
     runner = subparsers.add_parser("runner", help="Process files from queue")
     runner.add_argument("--runner-id", required=True, help="Unique runner identifier")
+    runner.add_argument("--force", action="store_true", help="Force reprocess all files")
 
     args = parser.parse_args(argv)
     setup_logging(level=args.log_level)
@@ -60,6 +61,19 @@ def _run_controller(config, args) -> int:
     from thresher.runner.processor import create_source_provider
 
     config.force = getattr(args, "force", False)
+
+    # Validate mutually exclusive modes
+    modes = sum(
+        [
+            getattr(args, "local", False),
+            getattr(args, "k8s_deploy", False),
+            bool(getattr(args, "k8s_manifest_out", None)),
+        ]
+    )
+    if modes > 1:
+        print("Error: --local, --k8s-deploy, and --k8s-manifest-out are mutually exclusive")
+        return 1
+
     source = create_source_provider(config)
 
     # Scan
@@ -79,10 +93,30 @@ def _run_controller(config, args) -> int:
 
     print(f"Created {len(batch_ids)} batches with {len(items)} files")
 
+    if not batch_ids:
+        return 0
+
     # Local mode: run embedded runner
     if args.local:
         return _run_local(config, source)
 
+    if args.k8s_deploy:
+        from thresher.controller.k8s_orchestrator import K8sOrchestrator
+
+        orchestrator = K8sOrchestrator(config, batch_ids)
+        created = orchestrator.deploy_jobs()
+        print(f"Deployed {len(created)} runner Jobs")
+        return 0
+
+    if args.k8s_manifest_out:
+        from thresher.controller.k8s_orchestrator import K8sOrchestrator
+
+        orchestrator = K8sOrchestrator(config, batch_ids)
+        orchestrator.export_manifests(args.k8s_manifest_out)
+        print(f"Exported manifests to {args.k8s_manifest_out}")
+        return 0
+
+    # Default: queue-only mode
     return 0
 
 
@@ -126,6 +160,7 @@ def _run_runner(config, args) -> int:
     from thresher.runner.processor import create_destination_provider, create_source_provider
     from thresher.types import ProcessingStatus
 
+    config.force = getattr(args, "force", False)
     source = create_source_provider(config)
     destination = create_destination_provider(config)
     embedder = Embedder(

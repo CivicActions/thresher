@@ -126,11 +126,22 @@ class FileProcessor:
                 # 5. Compute content hash
                 content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
 
+                # 5b. Content-hash dedup
+                if not self.config.force:
+                    if self.destination.exists_by_hash(collection, file_path, content_hash) is True:
+                        return ProcessingResult(
+                            path=file_path,
+                            status=ProcessingStatus.SKIPPED,
+                            duration_seconds=time.time() - start,
+                            content_hash=content_hash,
+                            file_type_group=group_name,
+                        )
+
                 # 6. Resolve source URL
                 source_url = resolve_source_url(file_path, text)
 
                 # 7. Chunk
-                raw_chunks = dispatch_chunker(text, group, doc_json)
+                raw_chunks = dispatch_chunker(text, group, doc_json, file_path=file_path)
                 if not raw_chunks:
                     return ProcessingResult(
                         path=file_path,
@@ -296,6 +307,7 @@ def dispatch_chunker(
     text: str,
     group: FileTypeGroup,
     doc_json: str | None = None,
+    file_path: str = "",
 ) -> list[dict]:
     """Dispatch to the correct chunker based on file type group config."""
     strategy = group.chunker.strategy
@@ -315,10 +327,10 @@ def dispatch_chunker(
         return chunk_mumps_source(text, chunk_size=chunk_size)
 
     if strategy == "chonkie-code":
-        # Will be implemented in Phase 8 (T047), fall back to recursive for now
-        from thresher.processing.chunkers.chonkie_recursive import chunk_with_recursive
+        from thresher.processing.chunkers.chonkie_code import chunk_code, detect_language
 
-        return chunk_with_recursive(text, chunk_size=chunk_size)
+        language = detect_language(file_path, group.chunker.language)
+        return chunk_code(text, chunk_size=chunk_size, language=language, file_path=file_path)
 
     if strategy in ("chonkie-recursive", "docling-hybrid"):
         from thresher.processing.chunkers.chonkie_recursive import chunk_with_recursive
