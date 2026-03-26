@@ -1,0 +1,102 @@
+# Built-in file type group defaults for Thresher
+# These are merged with user configuration — user groups with the same name
+# completely replace the built-in group.
+
+file_type_groups:
+  office-documents:
+    extensions: [".pdf", ".docx", ".xlsx", ".pptx", ".html", ".htm", ".rtf"]
+    mime_types: ["application/pdf", "application/vnd.openxmlformats"]
+    extractor: docling
+    chunker:
+      strategy: docling-hybrid
+      chunk_size: 512
+    priority: 50
+
+  mumps-source:
+    extensions: [".m", ".ro"]
+    detectors: ["mumps-labels"]
+    extractor: raw-text
+    chunker:
+      strategy: mumps-label-boundary
+      chunk_size: 512
+    priority: 30
+
+  mumps-globals:
+    extensions: [".zwr"]
+    detectors: ["caret-density"]
+    extractor: raw-text
+    chunker:
+      strategy: mumps-label-boundary
+      chunk_size: 512
+    priority: 30
+
+  general-source:
+    extensions:
+      - ".py"
+      - ".js"
+      - ".ts"
+      - ".java"
+      - ".c"
+      - ".cpp"
+      - ".h"
+      - ".go"
+      - ".rs"
+      - ".rb"
+      - ".php"
+      - ".cs"
+      - ".swift"
+      - ".kt"
+      - ".scala"
+      - ".sh"
+      - ".bash"
+      - ".pl"
+      - ".r"
+      - ".sql"
+      - ".lua"
+      - ".zig"
+      - ".v"
+      - ".lisp"
+      - ".clj"
+      - ".ex"
+      - ".erl"
+      - ".hs"
+    extractor: raw-text
+    chunker:
+      strategy: chonkie-code
+      chunk_size: 512
+      language: auto
+    priority: 60
+
+  data-files:
+    extensions: [".json", ".xml", ".csv", ".tsv", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".properties"]
+    extractor: raw-text
+    chunker:
+      strategy: chonkie-recursive
+      chunk_size: 512
+    priority: 70
+
+  images:
+    extensions: [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".svg"]
+    mime_types: ["image/"]
+    extractor: docling
+    chunker:
+      strategy: docling-hybrid
+      chunk_size: 512
+    priority: 80
+
+  plain-text:
+    extensions: [".txt", ".md", ".rst", ".log", ".readme"]
+    mime_types: ["text/plain"]
+    extractor: raw-text
+    chunker:
+      strategy: chonkie-recursive
+      chunk_size: 512
+      recipe: markdown
+    priority: 90
+
+  binary:
+    mime_types: ["application/octet-stream"]
+    extractor: skip
+    chunker:
+      strategy: skip
+    priority: 999
