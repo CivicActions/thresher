@@ -102,6 +102,32 @@ class FileProcessor:
                         file_type_group=group_name,
                     )
 
+                # 2b. Check file size thresholds
+                file_size = len(content)
+                is_source_file = group.extractor == "raw-text" and group.chunker.strategy in (
+                    "chonkie-code",
+                    "mumps-label-boundary",
+                )
+                size_limit = (
+                    self.config.processing.max_source_size
+                    if is_source_file
+                    else self.config.processing.max_file_size
+                )
+                if file_size > size_limit:
+                    logger.warning(
+                        "Skipping %s: size %d exceeds %s limit %d",
+                        file_path,
+                        file_size,
+                        "source" if is_source_file else "file",
+                        size_limit,
+                    )
+                    return ProcessingResult(
+                        path=file_path,
+                        status=ProcessingStatus.SKIPPED,
+                        duration_seconds=time.time() - start,
+                        file_type_group=group_name,
+                    )
+
                 # 3. Route to collection
                 is_source = group_name in self._source_groups
                 collection = self.router.route(file_path, group_name, is_source)

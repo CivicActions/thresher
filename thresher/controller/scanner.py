@@ -128,3 +128,24 @@ def scan_files(
         logger.info("Skip list filtered %d previously-processed files", skip_list_skipped)
     logger.info("Scan complete: %d files queued, %d skipped", len(items), skipped)
     return items
+
+
+def scan_summary(items: list[dict]) -> dict:
+    """Generate a summary of scanned files for dry-run reporting."""
+    by_group: dict[str, int] = {}
+    by_type: dict[str, int] = {}
+    total_size = 0
+
+    for item in items:
+        group = item.get("file_type_group", "unknown")
+        source_type = item.get("source_type", "direct")
+        by_group[group] = by_group.get(group, 0) + 1
+        by_type[source_type] = by_type.get(source_type, 0) + 1
+        total_size += item.get("file_size") or 0
+
+    return {
+        "total_files": len(items),
+        "by_group": by_group,
+        "by_source_type": by_type,
+        "total_size_bytes": total_size,
+    }

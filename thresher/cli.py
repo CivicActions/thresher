@@ -80,7 +80,18 @@ def _run_controller(config, args) -> int:
     items = scan_files(source, config)
 
     if args.dry_run:
-        print(f"Dry run: would queue {len(items)} files")
+        from thresher.controller.scanner import scan_summary
+
+        summary = scan_summary(items)
+        print("Dry run summary:")
+        print(f"  Total files: {summary['total_files']}")
+        print(f"  Total size: {summary['total_size_bytes'] / 1048576:.1f} MB")
+        print("  By file type group:")
+        for grp, count in sorted(summary["by_group"].items()):
+            print(f"    {grp}: {count}")
+        print("  By source type:")
+        for stype, count in sorted(summary["by_source_type"].items()):
+            print(f"    {stype}: {count}")
         return 0
 
     # Build queue
@@ -91,7 +102,13 @@ def _run_controller(config, args) -> int:
         batch_size=config.queue.batch_size,
     )
 
-    print(f"Created {len(batch_ids)} batches with {len(items)} files")
+    from thresher.controller.queue_builder import queue_summary
+
+    qsummary = queue_summary(batch_ids, items)
+    print(
+        f"Controller summary: {qsummary['total_files']} files scanned, "
+        f"{qsummary['batches_created']} batches created"
+    )
 
     if not batch_ids:
         return 0

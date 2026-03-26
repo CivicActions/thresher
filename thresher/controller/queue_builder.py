@@ -70,6 +70,15 @@ def build_queue(
     return batch_ids
 
 
+def queue_summary(batch_ids: list[str], items: list[dict]) -> dict:
+    """Generate a summary of queue building results."""
+    return {
+        "total_files": len(items),
+        "batches_created": len(batch_ids),
+        "batch_ids": batch_ids,
+    }
+
+
 def _serialize_batch(batch: QueueBatch) -> str:
     """Serialize a QueueBatch to JSON."""
     data: dict = {
