@@ -33,8 +33,6 @@ class TestLoadDefaults:
         cfg = load_config()
         expected = {
             "office-documents",
-            "mumps-source",
-            "mumps-globals",
             "general-source",
             "data-files",
             "images",
@@ -68,10 +66,10 @@ class TestLoadDefaults:
         assert grp.chunker.strategy == "skip"
         assert grp.priority == 999
 
-    def test_mumps_source_detectors(self):
+    def test_general_source_detectors(self):
         cfg = load_config()
-        grp = cfg.file_type_groups["mumps-source"]
-        assert "mumps-labels" in grp.detectors
+        grp = cfg.file_type_groups["general-source"]
+        assert grp.detectors == []
 
     def test_plain_text_recipe(self):
         cfg = load_config()
@@ -84,7 +82,7 @@ class TestLoadDefaults:
 
     def test_default_routing(self):
         cfg = load_config()
-        assert cfg.routing.default_collection == "vista"
+        assert cfg.routing.default_collection == "default"
         assert cfg.routing.rules == []
 
 
@@ -152,13 +150,13 @@ class TestUserConfigOverride:
         cfg = load_config(user_file)
         assert cfg.processing.docling_timeout == 999
         # Unmentioned defaults preserved
-        assert len(cfg.file_type_groups) == 8
+        assert len(cfg.file_type_groups) == 6
         assert cfg.destination.qdrant.url == "http://localhost:6333"
 
     def test_nonexistent_user_path_ignored(self):
         cfg = load_config("/nonexistent/path/config.yaml")
         assert isinstance(cfg, Config)
-        assert len(cfg.file_type_groups) == 8
+        assert len(cfg.file_type_groups) == 6
 
 
 # ---------------------------------------------------------------------------

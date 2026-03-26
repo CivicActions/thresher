@@ -94,7 +94,7 @@ def mock_embedder():
 @pytest.fixture
 def mock_router():
     router = MagicMock()
-    router.route.return_value = "vista"
+    router.route.return_value = "default"
     return router
 
 
@@ -111,7 +111,7 @@ def processor_config(file_type_groups):
     )
     cfg.file_type_groups = file_type_groups
     cfg.routing = RoutingConfig(
-        default_collection="vista",
+        default_collection="default",
         rules=[],
     )
     cfg.embedding = EmbeddingConfig(vector_size=384, vector_name="test-vec")

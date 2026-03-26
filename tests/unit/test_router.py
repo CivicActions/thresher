@@ -9,14 +9,14 @@ from thresher.types import RoutingRule
 def _make_router(rules: list[RoutingRule] | None = None) -> Router:
     return Router(
         rules=rules or [],
-        default_collection="vista",
+        default_collection="default",
     )
 
 
 class TestDefaultRouting:
     def test_no_rules_returns_default(self):
         router = _make_router()
-        assert router.route("docs/file.pdf") == "vista"
+        assert router.route("docs/file.pdf") == "default"
 
     def test_source_routing_via_rule(self):
         rules = [
@@ -30,7 +30,7 @@ class TestDefaultRouting:
 
     def test_no_source_rule_uses_default(self):
         router = _make_router()
-        assert router.route("src/main.py", file_type_group="general-source") == "vista"
+        assert router.route("src/main.py", file_type_group="general-source") == "default"
 
     def test_custom_default_collection(self):
         router = Router(rules=[], default_collection="custom")
@@ -66,12 +66,12 @@ class TestFileGroupCriterion:
     def test_file_group_no_match(self):
         rules = [RoutingRule(collection="target", file_group=["web-content"])]
         router = _make_router(rules)
-        assert router.route("main.py", file_type_group="source-code") == "vista"
+        assert router.route("main.py", file_type_group="source-code") == "default"
 
     def test_file_group_none_type(self):
         rules = [RoutingRule(collection="target", file_group=["web-content"])]
         router = _make_router(rules)
-        assert router.route("unknown.xyz", file_type_group=None) == "vista"
+        assert router.route("unknown.xyz", file_type_group=None) == "default"
 
 
 class TestPathCriterion:
@@ -83,7 +83,7 @@ class TestPathCriterion:
     def test_path_no_match(self):
         rules = [RoutingRule(collection="legacy", path=["legacy/"])]
         router = _make_router(rules)
-        assert router.route("current/new_doc.pdf") == "vista"
+        assert router.route("current/new_doc.pdf") == "default"
 
     def test_path_regex_match(self):
         rules = [RoutingRule(collection="versioned", path=[r"^v\d+/"])]
@@ -93,14 +93,14 @@ class TestPathCriterion:
     def test_path_regex_no_match(self):
         rules = [RoutingRule(collection="versioned", path=[r"^v\d+/"])]
         router = _make_router(rules)
-        assert router.route("docs/v2-notes.md") == "vista"
+        assert router.route("docs/v2-notes.md") == "default"
 
     def test_path_or_semantics(self):
         rules = [RoutingRule(collection="archive", path=["old/", "archive/"])]
         router = _make_router(rules)
         assert router.route("old/doc.pdf") == "archive"
         assert router.route("archive/doc.pdf") == "archive"
-        assert router.route("new/doc.pdf") == "vista"
+        assert router.route("new/doc.pdf") == "default"
 
 
 class TestFilenameCriterion:
@@ -117,7 +117,7 @@ class TestFilenameCriterion:
     def test_filename_no_match(self):
         rules = [RoutingRule(collection="readmes", filename=["README*"])]
         router = _make_router(rules)
-        assert router.route("project/main.py") == "vista"
+        assert router.route("project/main.py") == "default"
 
     def test_filename_or_semantics(self):
         rules = [RoutingRule(collection="meta", filename=["README*", "LICENSE*", "CHANGELOG*"])]
@@ -140,9 +140,9 @@ class TestAndSemantics:
         # Both match
         assert router.route("important/report.pdf", file_type_group="office-documents") == "special"
         # Only path matches
-        assert router.route("important/main.py", file_type_group="source-code") == "vista"
+        assert router.route("important/main.py", file_type_group="source-code") == "default"
         # Only group matches
-        assert router.route("other/report.pdf", file_type_group="office-documents") == "vista"
+        assert router.route("other/report.pdf", file_type_group="office-documents") == "default"
 
     def test_all_three_criteria(self):
         rules = [
@@ -155,13 +155,13 @@ class TestAndSemantics:
         ]
         router = _make_router(rules)
         assert router.route("public/index.html", file_type_group="web-content") == "precise"
-        assert router.route("public/about.html", file_type_group="web-content") == "vista"
+        assert router.route("public/about.html", file_type_group="web-content") == "default"
 
     def test_empty_rule_never_matches(self):
         """A rule with no criteria should not match anything."""
         rules = [RoutingRule(collection="empty")]
         router = _make_router(rules)
-        assert router.route("anything.txt") == "vista"
+        assert router.route("anything.txt") == "default"
 
 
 class TestPathMatches:

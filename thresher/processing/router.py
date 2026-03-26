@@ -21,7 +21,7 @@ class Router:
     def __init__(
         self,
         rules: list[RoutingRule],
-        default_collection: str = "vista",
+        default_collection: str = "default",
     ):
         self.rules = rules
         self.default_collection = default_collection

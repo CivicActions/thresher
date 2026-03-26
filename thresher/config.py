@@ -11,6 +11,7 @@ from typing import Any
 import yaml
 
 from thresher.types import ChunkerConfig, FileTypeGroup, RoutingRule
+from thresher.url_resolver import UrlResolverConfig, parse_url_resolvers
 
 
 @dataclass
@@ -44,7 +45,7 @@ class DestConfig:
 
 @dataclass
 class RoutingConfig:
-    default_collection: str = "vista"
+    default_collection: str = "default"
     rules: list[RoutingRule] = field(default_factory=list)
 
 
@@ -113,6 +114,7 @@ class Config:
     processing: ProcessingConfig = field(default_factory=ProcessingConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     kubernetes: K8sConfig = field(default_factory=K8sConfig)
+    url_resolvers: list[UrlResolverConfig] = field(default_factory=list)
     force: bool = False
 
 
@@ -286,9 +288,9 @@ def _build_config(raw: dict[str, Any]) -> Config:
         file_type_groups=file_type_groups,
         routing=RoutingConfig(
             default_collection=str(
-                routing_raw.get("default_collection", "vista")
+                routing_raw.get("default_collection", "default")
                 if isinstance(routing_raw, dict)
-                else "vista"
+                else "default"
             ),
             rules=routing_rules,
         ),
@@ -380,6 +382,7 @@ def _build_config(raw: dict[str, Any]) -> Config:
                 else 3600
             ),
         ),
+        url_resolvers=parse_url_resolvers(raw.get("url_resolvers")),
     )
 
 

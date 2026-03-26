@@ -92,7 +92,7 @@ def config(file_type_groups):
     )
     cfg.file_type_groups = file_type_groups
     cfg.routing = RoutingConfig(
-        default_collection="vista",
+        default_collection="default",
         rules=[],
     )
     cfg.embedding = EmbeddingConfig(
@@ -126,7 +126,7 @@ def mock_embedder():
 @pytest.fixture
 def mock_router():
     router = MagicMock()
-    router.route.return_value = "vista"
+    router.route.return_value = "default"
     return router
 
 
@@ -183,7 +183,7 @@ class TestFileProcessor:
         assert result.status == ProcessingStatus.INDEXED
         assert result.path == "data/routine.m"
         assert result.chunk_count == 1
-        assert result.collection == "vista"
+        assert result.collection == "default"
         mock_destination.index_chunks.assert_called_once()
 
     def test_process_file_skipped_no_group(

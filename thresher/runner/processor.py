@@ -152,7 +152,9 @@ class FileProcessor:
                         )
 
                 # 6. Resolve source URL
-                source_url = resolve_source_url(file_path, text)
+                source_url = resolve_source_url(
+                    file_path, text, resolvers=self.config.url_resolvers or None
+                )
 
                 # 7. Chunk
                 raw_chunks = dispatch_chunker(text, group, doc_json, file_path=file_path)

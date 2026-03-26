@@ -1,11 +1,11 @@
 # Thresher Configuration
 # Copy to config.yaml and customize for your environment.
-# Values below show defaults — uncomment and change as needed.
+# Values below show defaults -- uncomment and change as needed.
 #
-# Loading order: built-in defaults → this file → environment variables
+# Loading order: built-in defaults -> this file -> environment variables
 # Environment variables: QDRANT_URL, QDRANT_API_KEY, GCS_BUCKET
 
-# ─── Source Provider ───────────────────────────────────────────────
+# --- Source Provider ---
 source:
   provider: gcs
   gcs:
@@ -15,7 +15,7 @@ source:
     cache_prefix: "cache/"               # Prefix for extraction cache
     queue_prefix: "queue/"               # Prefix for queue batches
 
-# ─── Destination Provider ──────────────────────────────────────────
+# --- Destination Provider ---
 destination:
   provider: qdrant
   qdrant:
@@ -24,7 +24,7 @@ destination:
     timeout: 60                          # Connection timeout seconds
     batch_size: 100                      # Upsert batch size
 
-# ─── File Type Groups ─────────────────────────────────────────────
+# --- File Type Groups ---
 # User-defined groups merge with built-in defaults (defaults.yaml).
 # Same-name groups replace the built-in entirely.
 # Unmentioned built-in groups are preserved.
@@ -39,27 +39,30 @@ destination:
 #       chunk_size: 512
 #     max_file_size: 10485760              # 10 MB
 
-# ─── Routing Rules ────────────────────────────────────────────────
+# --- Routing Rules ---
 # Rules are evaluated in declaration order (first-match-wins).
 # Within a rule, criteria types are ANDed; values within each are ORed.
 routing:
-  default_collection: "vista"            # Collection for unmatched files
-  rules:
-    # Example: route source code groups to a separate collection
-    - name: source-code
-      file_group: ["mumps-source", "general-source", "mumps-globals"]
-      collection: vista-source
+  default_collection: "default"           # Collection for unmatched files
+  rules: []
 
-# ─── Queue Settings ───────────────────────────────────────────────
+# --- URL Resolvers ---
+# Chain of resolvers tried in order; first non-None result wins.
+# Built-in types: httrack (HTML comment), pattern (regex->template), domain-first
+# Default (when empty): httrack -> domain-first
+#
+# url_resolvers: []
+
+# --- Queue Settings ---
 # queue:
 #   batch_size: 1000                     # Items per batch file
 #   lease_timeout: 600                   # Seconds before stale claim reclaim
 
-# ─── Processing Settings ──────────────────────────────────────────
+# --- Processing Settings ---
 # processing:
 #   docling_timeout: 600                 # Subprocess timeout for docling conversion
 #   per_file_timeout: 600                # Overall per-file processing timeout
-#   image_min_size: 51200                # 50 KB — skip smaller images from OCR
+#   image_min_size: 51200                # 50 KB -- skip smaller images from OCR
 #   max_pages: 500                       # Max pages for docling extraction
 #   retry_max: 3                         # Max retry attempts per file
 #   memory_threshold_mb: 4096            # Runner RSS limit (4 GB)
@@ -67,17 +70,17 @@ routing:
 #   archive_depth: 2                     # Max recursive archive expansion depth
 #   summary_interval: 100                # Log summary every N files
 
-# ─── Embedding Settings ───────────────────────────────────────────
+# --- Embedding Settings ---
 # embedding:
 #   model: "sentence-transformers/all-MiniLM-L6-v2"
 #   vector_size: 384
 #   vector_name: "fast-all-minilm-l6-v2"
 #   max_tokens: 512
 
-# ─── Kubernetes Settings (optional) ───────────────────────────────
+# --- Kubernetes Settings (optional) ---
 # kubernetes:
 #   namespace: ""                        # Default: auto-detect from pod
-#   service_account: ""                  # Default: auto-detect from pod
+#   service_account: ""
 #   image: ""                            # Default: auto-detect from pod
 #   image_pull_policy: "IfNotPresent"
 #   runner_resources:
@@ -88,7 +91,52 @@ routing:
 #       cpu: "2"
 #       memory: "4Gi"
 #   max_parallelism: 10
-#   node_selector: {}
-#   tolerations: []
 #   backoff_limit: 3
 #   ttl_seconds_after_finished: 3600
+
+# ===========================================================================
+# Example: VistA/RPMS project configuration
+# ===========================================================================
+# The following shows how to configure Thresher for a VistA/RPMS project.
+# Uncomment and adapt for your needs.
+#
+# file_type_groups:
+#   mumps-source:
+#     extensions: [".m", ".ro"]
+#     detectors: ["mumps-labels"]
+#     extractor: raw-text
+#     chunker:
+#       strategy: mumps-label-boundary
+#       chunk_size: 512
+#     priority: 30
+#     max_file_size: 10485760
+#
+#   mumps-globals:
+#     extensions: [".zwr"]
+#     detectors: ["caret-density"]
+#     extractor: raw-text
+#     chunker:
+#       strategy: mumps-label-boundary
+#       chunk_size: 512
+#     priority: 30
+#     max_file_size: 10485760
+#
+# routing:
+#   default_collection: "vista"
+#   rules:
+#     - name: source-code
+#       file_group: ["mumps-source", "general-source", "mumps-globals"]
+#       collection: vista-source
+#
+# url_resolvers:
+#   - type: httrack
+#   - type: pattern
+#     match: "^WorldVistA/([^/]+)/(.+)$"
+#     template: "https://github.com/WorldVistA/{1}/blob/HEAD/{2}"
+#     strip_prefix: "source/"
+#   - type: pattern
+#     match: "^WorldVistA/([^/]+)$"
+#     template: "https://github.com/WorldVistA/{1}"
+#     strip_prefix: "source/"
+#   - type: domain-first
+#     strip_prefix: "source/"

@@ -1,5 +1,5 @@
 # Built-in file type group defaults for Thresher
-# These are merged with user configuration — user groups with the same name
+# These are merged with user configuration -- user groups with the same name
 # completely replace the built-in group.
 # max_file_size: 0 means no limit; set per group to skip oversized files.
 
@@ -13,26 +13,6 @@ file_type_groups:
       chunk_size: 512
     priority: 50
     max_file_size: 52428800  # 50 MB
-
-  mumps-source:
-    extensions: [".m", ".ro"]
-    detectors: ["mumps-labels"]
-    extractor: raw-text
-    chunker:
-      strategy: mumps-label-boundary
-      chunk_size: 512
-    priority: 30
-    max_file_size: 10485760  # 10 MB
-
-  mumps-globals:
-    extensions: [".zwr"]
-    detectors: ["caret-density"]
-    extractor: raw-text
-    chunker:
-      strategy: mumps-label-boundary
-      chunk_size: 512
-    priority: 30
-    max_file_size: 10485760  # 10 MB
 
   general-source:
     extensions:
