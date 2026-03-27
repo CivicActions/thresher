@@ -21,18 +21,6 @@ from thresher.config import (
 
 pytestmark = pytest.mark.functional
 
-# The kubernetes Python client reads HTTPS_PROXY on every Configuration()
-# instantiation and ignores NO_PROXY.  K8sOrchestrator creates its own client
-# internally, so we must strip proxy env vars for the duration of each test.
-_PROXY_VARS = ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy")
-
-
-@pytest.fixture(autouse=True)
-def _no_proxy_for_k8s(monkeypatch):
-    """Remove HTTP(S) proxy env vars so the K8s client connects directly."""
-    for var in _PROXY_VARS:
-        monkeypatch.delenv(var, raising=False)
-
 
 def _make_config(
     image: str = "busybox:latest",
