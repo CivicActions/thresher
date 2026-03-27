@@ -133,13 +133,16 @@ def dest_provider(clean_qdrant):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def embedder():
     from thresher.embedder import Embedder
 
-    emb = Embedder(model_name="sentence-transformers/all-MiniLM-L6-v2", max_tokens=512)
-    emb.preload()
-    return emb
+    try:
+        emb = Embedder(model_name="sentence-transformers/all-MiniLM-L6-v2", max_tokens=512)
+        emb.preload()
+        return emb
+    except Exception as exc:
+        pytest.skip(f"Embedding model not available: {exc}")
 
 
 @pytest.fixture

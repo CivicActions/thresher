@@ -10,13 +10,24 @@ from __future__ import annotations
 
 import io
 import os
+
+# Force HuggingFace offline mode BEFORE any ML libraries are imported.
+# The tokenizers Rust library caches HTTP configuration at import time,
+# so env vars must be set before first import to avoid SSL failures
+# in MITM proxy environments.
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
 import subprocess
+import tempfile
 import time
+import warnings
 import zipfile
 from pathlib import Path
 
 import pytest
 import requests
+import yaml
 
 COMPOSE_FILE = Path(__file__).parents[2] / "docker-compose.functional.yaml"
 FAKE_GCS_URL = "http://localhost:4443"
@@ -172,3 +183,180 @@ def sample_source() -> bytes:
 @pytest.fixture
 def sample_zip() -> bytes:
     return make_zip_archive()
+
+
+# ---------------------------------------------------------------------------
+# K8s / k3s fixtures
+# ---------------------------------------------------------------------------
+
+K3S_CONTAINER = "thresher-k3s"
+K3S_IMAGE = "rancher/k3s:v1.32.3-k3s1"
+K3S_PORT = 6443
+
+
+def _disable_proxy_for_localhost() -> None:
+    """Add localhost to NO_PROXY so K8s/GCS/Qdrant bypass the proxy.
+
+    Keeps HTTP(S)_PROXY set so external services (HuggingFace, PyPI)
+    remain reachable through the sandbox proxy.
+    """
+    bypass = {"localhost", "127.0.0.1", "::1"}
+    no_proxy = os.environ.get("NO_PROXY", os.environ.get("no_proxy", ""))
+    existing = {h.strip() for h in no_proxy.split(",") if h.strip()}
+    merged = ",".join(sorted(existing | bypass))
+    os.environ["NO_PROXY"] = merged
+    os.environ["no_proxy"] = merged
+
+
+def _k3s_running() -> bool:
+    """Check if our k3s container is running."""
+    result = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", K3S_CONTAINER],
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+def _start_k3s() -> bool:
+    """Start a k3s container if not already running."""
+    if _k3s_running():
+        return True
+    subprocess.run(["docker", "rm", "-f", K3S_CONTAINER], capture_output=True)
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            K3S_CONTAINER,
+            "--privileged",
+            "-p",
+            f"{K3S_PORT}:6443",
+            K3S_IMAGE,
+            "server",
+            "--disable=traefik",
+            "--disable=servicelb",
+            "--tls-san=localhost",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def _wait_for_k8s_api(kubeconfig: str, timeout: int = 60) -> bool:
+    """Wait until the K8s API server is reachable."""
+    deadline = time.monotonic() + timeout
+    env = {**os.environ, "KUBECONFIG": kubeconfig}
+    for var in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+        env.pop(var, None)
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            ["kubectl", "get", "ns", "default"],
+            capture_output=True,
+            env=env,
+        )
+        if result.returncode == 0:
+            return True
+        time.sleep(2)
+    return False
+
+
+def _extract_kubeconfig() -> str | None:
+    """Extract kubeconfig from k3s container, fix server address and TLS."""
+    result = subprocess.run(
+        ["docker", "exec", K3S_CONTAINER, "cat", "/etc/rancher/k3s/k3s.yaml"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    kc = yaml.safe_load(result.stdout)
+    for cluster in kc.get("clusters", []):
+        c = cluster.get("cluster", {})
+        c["server"] = f"https://localhost:{K3S_PORT}"
+        c.pop("certificate-authority-data", None)
+        c["insecure-skip-tls-verify"] = True
+    path = os.path.join(tempfile.gettempdir(), "thresher-k3s-kubeconfig.yaml")
+    with open(path, "w") as f:
+        yaml.dump(kc, f, default_flow_style=False)
+    return path
+
+
+@pytest.fixture(scope="session")
+def k8s_cluster():
+    """Ensure a K8s cluster is available and return the kubeconfig path."""
+    _disable_proxy_for_localhost()
+    existing = os.environ.get("KUBECONFIG")
+    if existing and os.path.isfile(existing) and _wait_for_k8s_api(existing, timeout=5):
+        yield existing
+        return
+
+    try:
+        if not _start_k3s():
+            pytest.skip("Failed to start k3s container")
+            return
+    except FileNotFoundError:
+        pytest.skip("docker not available")
+        return
+
+    time.sleep(10)
+    kubeconfig = _extract_kubeconfig()
+    if kubeconfig is None:
+        pytest.skip("Failed to extract kubeconfig from k3s")
+        return
+    if not _wait_for_k8s_api(kubeconfig, timeout=60):
+        pytest.skip("K8s API did not become ready in time")
+        return
+    os.environ["KUBECONFIG"] = kubeconfig
+    yield kubeconfig
+
+
+def _k8s_config_no_proxy(kubeconfig: str):
+    """Load kubeconfig and disable proxy for local K8s API."""
+    from kubernetes import client, config
+
+    config.load_kube_config(config_file=kubeconfig)
+    # The kubernetes client reads HTTPS_PROXY but ignores NO_PROXY.
+    # Explicitly clear proxy so localhost connections go direct.
+    cfg = client.Configuration.get_default_copy()
+    cfg.proxy = None
+    cfg.verify_ssl = False
+    client.Configuration.set_default(cfg)
+
+
+@pytest.fixture(scope="session")
+def k8s_api(k8s_cluster):
+    """Return a kubernetes BatchV1Api client configured for the test cluster."""
+    from kubernetes import client
+
+    _k8s_config_no_proxy(k8s_cluster)
+    warnings.filterwarnings("ignore", message="Unverified HTTPS request")
+    return client.BatchV1Api()
+
+
+@pytest.fixture(scope="session")
+def k8s_core_api(k8s_cluster):
+    """Return a kubernetes CoreV1Api client."""
+    from kubernetes import client
+
+    _k8s_config_no_proxy(k8s_cluster)
+    return client.CoreV1Api()
+
+
+@pytest.fixture
+def clean_k8s_jobs(k8s_api):
+    """Delete all thresher Jobs before each test."""
+    try:
+        jobs = k8s_api.list_namespaced_job(namespace="default", label_selector="app=thresher")
+        for job in jobs.items:
+            k8s_api.delete_namespaced_job(
+                name=job.metadata.name,
+                namespace="default",
+                body={"propagationPolicy": "Background"},
+            )
+    except Exception:
+        pass
+    time.sleep(1)
+    return k8s_api

@@ -49,6 +49,7 @@ markers = [
 
 [dependency-groups]
 dev = [
+    "kubernetes>=35.0.0",
     "prek>=0.3.8",
     "pytest>=8.0",
     "pytest-timeout>=2.3.1",
