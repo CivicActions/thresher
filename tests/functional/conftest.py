@@ -311,6 +311,8 @@ def _k8s_config_local(kubeconfig: str):
     cfg = client.Configuration.get_default_copy()
     cfg.verify_ssl = False
     client.Configuration.set_default(cfg)
+    # Suppress urllib3 InsecureRequestWarning for all k8s fixtures.
+    warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 
 @pytest.fixture(scope="session")
@@ -319,7 +321,6 @@ def k8s_api(k8s_cluster):
     from kubernetes import client
 
     _k8s_config_local(k8s_cluster)
-    warnings.filterwarnings("ignore", message="Unverified HTTPS request")
     return client.BatchV1Api()
 
 

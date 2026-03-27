@@ -93,7 +93,7 @@ Defined in `thresher/types.py`: `FileInfo`, `FileTypeGroup`, `ChunkerConfig`, `R
 
 ## Docker Sandbox
 
-Development environment uses [Docker AI Sandbox](https://docs.docker.com/ai/sandboxes/). If you are running inside a Docker sandbox (check: `[ -f /usr/local/share/ca-certificates/proxy-ca.crt ]`), read `.sandbox/README.md` for environment setup, known issues, and workarounds. Key points:
+Development environment often uses [Docker AI Sandbox](https://docs.docker.com/ai/sandboxes/). If you are running inside a Docker sandbox (check: `[ -f /usr/local/share/ca-certificates/proxy-ca.crt ]`), read `.sandbox/README.md` for environment setup, known issues, and workarounds. Key points:
 
 - Run `sandbox-init.sh && . /tmp/thresher-env.sh` to initialize (CA bundle, deps, services, env vars)
 - The venv is at `/home/agent/.venv` (overlay fs), **not** `.venv` in the project dir
