@@ -67,9 +67,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Add `_upload_batch(files: list[tuple[str, str]], max_workers: int)` method to `ArchiveExpander` in `thresher/controller/archive_expander.py` using `concurrent.futures.ThreadPoolExecutor` to upload extracted members concurrently; integrate into `_expand_single()` replacing the sequential upload loop; read `upload_batch_size` from config
-- [ ] T017 [US2] Add per-file retry with exponential backoff (base 1s, max 3 retries per research.md R1) inside `_upload_batch()` in `thresher/controller/archive_expander.py`; collect and re-raise if all retries exhausted for any file
-- [ ] T018 [P] [US2] Update `tests/unit/test_archive_expander.py` with tests: concurrent upload uses ThreadPoolExecutor with configured batch size, failed upload retries with backoff, partial batch failure retries then raises, single large file uploads normally
+- [X] T016 [US2] Add `_upload_batch(files: list[tuple[str, str]], max_workers: int)` method to `ArchiveExpander` in `thresher/controller/archive_expander.py` using `concurrent.futures.ThreadPoolExecutor` to upload extracted members concurrently; integrate into `_expand_single()` replacing the sequential upload loop; read `upload_batch_size` from config
+- [X] T017 [US2] Add per-file retry with exponential backoff (base 1s, max 3 retries per research.md R1) inside `_upload_batch()` in `thresher/controller/archive_expander.py`; collect and re-raise if all retries exhausted for any file
+- [X] T018 [P] [US2] Update `tests/unit/test_archive_expander.py` with tests: concurrent upload uses ThreadPoolExecutor with configured batch size, failed upload retries with backoff, partial batch failure retries then raises, single large file uploads normally
 
 **Checkpoint**: Archive expansion uploads files concurrently; failed uploads retry; all existing archive expander tests still pass
 

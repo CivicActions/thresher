@@ -381,7 +381,7 @@ class TestDryRunCLI:
         """Controller --dry-run should print detailed summary."""
         from thresher.cli import main
 
-        def mock_scan_files(source, config):
+        def mock_scan_direct(source, config):
             return [
                 {
                     "path": "data/routine.m",
@@ -395,6 +395,10 @@ class TestDryRunCLI:
                     "file_type_group": "documents",
                     "file_size": 2048,
                 },
+            ], []
+
+        def mock_scan_expanded(source, config):
+            return [
                 {
                     "path": "expanded/inner.m",
                     "source_type": "expanded",
@@ -406,7 +410,8 @@ class TestDryRunCLI:
         def mock_create_source(config):
             return MagicMock()
 
-        monkeypatch.setattr("thresher.controller.scanner.scan_files", mock_scan_files)
+        monkeypatch.setattr("thresher.controller.scanner.scan_direct_files", mock_scan_direct)
+        monkeypatch.setattr("thresher.controller.scanner.scan_expanded_files", mock_scan_expanded)
         monkeypatch.setattr("thresher.runner.processor.create_source_provider", mock_create_source)
 
         result = main(["controller", "--dry-run"])
@@ -414,24 +419,23 @@ class TestDryRunCLI:
 
         captured = capsys.readouterr().out
         assert "Dry run summary:" in captured
-        assert "Total files: 3" in captured
+        assert "Total files: 2" in captured
         assert "Total size:" in captured
-        assert "mumps: 2" in captured
+        assert "mumps: 1" in captured
         assert "documents: 1" in captured
         assert "direct: 2" in captured
-        assert "expanded: 1" in captured
 
     def test_dry_run_empty_scan(self, monkeypatch, capsys):
         """Controller --dry-run with no files should show zero counts."""
         from thresher.cli import main
 
-        def mock_scan_files(source, config):
-            return []
+        def mock_scan_direct(source, config):
+            return [], []
 
         def mock_create_source(config):
             return MagicMock()
 
-        monkeypatch.setattr("thresher.controller.scanner.scan_files", mock_scan_files)
+        monkeypatch.setattr("thresher.controller.scanner.scan_direct_files", mock_scan_direct)
         monkeypatch.setattr("thresher.runner.processor.create_source_provider", mock_create_source)
 
         result = main(["controller", "--dry-run"])
@@ -453,7 +457,7 @@ class TestControllerSummary:
         """Controller (non-dry-run) should print summary with file and batch counts."""
         from thresher.cli import main
 
-        def mock_scan_files(source, config):
+        def mock_scan_direct(source, config):
             return [
                 {
                     "path": "data/routine.m",
@@ -461,7 +465,7 @@ class TestControllerSummary:
                     "file_type_group": "mumps",
                     "file_size": 1024,
                 },
-            ]
+            ], []
 
         def mock_build_queue(items, source, **kwargs):
             return ["batch-0001"]
@@ -469,7 +473,7 @@ class TestControllerSummary:
         def mock_create_source(config):
             return MagicMock()
 
-        monkeypatch.setattr("thresher.controller.scanner.scan_files", mock_scan_files)
+        monkeypatch.setattr("thresher.controller.scanner.scan_direct_files", mock_scan_direct)
         monkeypatch.setattr("thresher.controller.queue_builder.build_queue", mock_build_queue)
         monkeypatch.setattr("thresher.runner.processor.create_source_provider", mock_create_source)
 

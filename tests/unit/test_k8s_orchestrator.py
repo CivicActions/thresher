@@ -388,7 +388,7 @@ class TestCLIMutualExclusivity:
         """Cannot use --local and --k8s-deploy together."""
 
         def mock_scan(source, config):
-            return [{"path": "f.txt", "source_type": "direct", "file_type_group": "text"}]
+            return [{"path": "f.txt", "source_type": "direct", "file_type_group": "text"}], []
 
         def mock_build_queue(items, source, **kwargs):
             return ["batch-001"]
@@ -396,7 +396,7 @@ class TestCLIMutualExclusivity:
         def mock_create_source(config):
             return MagicMock()
 
-        monkeypatch.setattr("thresher.controller.scanner.scan_files", mock_scan)
+        monkeypatch.setattr("thresher.controller.scanner.scan_direct_files", mock_scan)
         monkeypatch.setattr("thresher.controller.queue_builder.build_queue", mock_build_queue)
         monkeypatch.setattr("thresher.runner.processor.create_source_provider", mock_create_source)
 
@@ -407,7 +407,7 @@ class TestCLIMutualExclusivity:
         """Cannot use --local and --k8s-manifest-out together."""
 
         def mock_scan(source, config):
-            return [{"path": "f.txt", "source_type": "direct", "file_type_group": "text"}]
+            return [{"path": "f.txt", "source_type": "direct", "file_type_group": "text"}], []
 
         def mock_build_queue(items, source, **kwargs):
             return ["batch-001"]
@@ -415,7 +415,7 @@ class TestCLIMutualExclusivity:
         def mock_create_source(config):
             return MagicMock()
 
-        monkeypatch.setattr("thresher.controller.scanner.scan_files", mock_scan)
+        monkeypatch.setattr("thresher.controller.scanner.scan_direct_files", mock_scan)
         monkeypatch.setattr("thresher.controller.queue_builder.build_queue", mock_build_queue)
         monkeypatch.setattr("thresher.runner.processor.create_source_provider", mock_create_source)
 
@@ -426,7 +426,7 @@ class TestCLIMutualExclusivity:
         """Cannot use all three modes together."""
 
         def mock_scan(source, config):
-            return [{"path": "f.txt", "source_type": "direct", "file_type_group": "text"}]
+            return [{"path": "f.txt", "source_type": "direct", "file_type_group": "text"}], []
 
         def mock_build_queue(items, source, **kwargs):
             return ["batch-001"]
@@ -434,7 +434,7 @@ class TestCLIMutualExclusivity:
         def mock_create_source(config):
             return MagicMock()
 
-        monkeypatch.setattr("thresher.controller.scanner.scan_files", mock_scan)
+        monkeypatch.setattr("thresher.controller.scanner.scan_direct_files", mock_scan)
         monkeypatch.setattr("thresher.controller.queue_builder.build_queue", mock_build_queue)
         monkeypatch.setattr("thresher.runner.processor.create_source_provider", mock_create_source)
 
@@ -462,7 +462,7 @@ class TestCLIK8sManifestOut:
         monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
 
         def mock_scan(source, config):
-            return [{"path": "f.txt", "source_type": "direct", "file_type_group": "text"}]
+            return [{"path": "f.txt", "source_type": "direct", "file_type_group": "text"}], []
 
         def mock_build_queue(items, source, **kwargs):
             return ["batch-001"]
@@ -470,7 +470,7 @@ class TestCLIK8sManifestOut:
         def mock_create_source(config):
             return MagicMock()
 
-        monkeypatch.setattr("thresher.controller.scanner.scan_files", mock_scan)
+        monkeypatch.setattr("thresher.controller.scanner.scan_direct_files", mock_scan)
         monkeypatch.setattr("thresher.controller.queue_builder.build_queue", mock_build_queue)
         monkeypatch.setattr("thresher.runner.processor.create_source_provider", mock_create_source)
 
@@ -487,7 +487,7 @@ class TestCLIK8sManifestOut:
         """No batches → no K8s action, returns 0."""
 
         def mock_scan(source, config):
-            return []
+            return [], []
 
         def mock_build_queue(items, source, **kwargs):
             return []
@@ -495,7 +495,7 @@ class TestCLIK8sManifestOut:
         def mock_create_source(config):
             return MagicMock()
 
-        monkeypatch.setattr("thresher.controller.scanner.scan_files", mock_scan)
+        monkeypatch.setattr("thresher.controller.scanner.scan_direct_files", mock_scan)
         monkeypatch.setattr("thresher.controller.queue_builder.build_queue", mock_build_queue)
         monkeypatch.setattr("thresher.runner.processor.create_source_provider", mock_create_source)
 

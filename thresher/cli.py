@@ -68,11 +68,17 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run_controller(config, args) -> int:
-    """Execute the controller workflow."""
+    """Execute the controller workflow.
+
+    Two-phase flow: (1) scan direct files + expand archives, (2) build queue from all files.
+    """
+    import logging
+
     from thresher.controller.queue_builder import build_queue
-    from thresher.controller.scanner import scan_files
+    from thresher.controller.scanner import scan_direct_files, scan_expanded_files, scan_summary
     from thresher.runner.processor import create_source_provider
 
+    logger = logging.getLogger("thresher.cli")
     config.force = getattr(args, "force", False)
 
     # Validate mutually exclusive modes
@@ -89,15 +95,33 @@ def _run_controller(config, args) -> int:
 
     source = create_source_provider(config)
 
-    # Scan
-    items = scan_files(source, config)
+    # Phase 1: Scan for direct files and detect archives
+    items, archives = scan_direct_files(source, config)
+
+    # Phase 1b: Expand archives (parallel) if any found
+    if archives:
+        from thresher.controller.expansion_orchestrator import ExpansionOrchestrator
+
+        orch = ExpansionOrchestrator(config, source)
+
+        if getattr(args, "k8s_deploy", False):
+            expansion_result = orch.expand_k8s(archives)
+        else:
+            expansion_result = orch.expand_local(archives)
+
+        if expansion_result.failed_archives:
+            logger.warning(
+                "Failed archives: %s", ", ".join(expansion_result.failed_archives)
+            )
+
+        # Phase 1c: Scan expanded files
+        expanded_items = scan_expanded_files(source, config)
+        items.extend(expanded_items)
 
     if args.limit is not None and len(items) > args.limit:
         items = items[: args.limit]
 
     if args.dry_run:
-        from thresher.controller.scanner import scan_summary
-
         summary = scan_summary(items)
         print("Dry run summary:")
         print(f"  Total files: {summary['total_files']}")
@@ -110,7 +134,7 @@ def _run_controller(config, args) -> int:
             print(f"    {stype}: {count}")
         return 0
 
-    # Build queue
+    # Phase 2: Build queue from all files (direct + expanded)
     batch_ids = build_queue(
         items,
         source,

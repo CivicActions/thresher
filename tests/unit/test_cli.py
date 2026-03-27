@@ -14,7 +14,7 @@ class TestCLIArgParsing:
         """Controller subcommand should be accepted."""
 
         def mock_scan(source, config):
-            return []
+            return [], []
 
         def mock_create_source(config):
             from unittest.mock import MagicMock
@@ -22,7 +22,7 @@ class TestCLIArgParsing:
             return MagicMock()
 
         monkeypatch.setattr(
-            "thresher.controller.scanner.scan_files",
+            "thresher.controller.scanner.scan_direct_files",
             mock_scan,
         )
         monkeypatch.setattr(
@@ -64,7 +64,7 @@ class TestCLIArgParsing:
                     "source_type": "direct",
                     "file_type_group": "mumps",
                 }
-            ]
+            ], []
 
         def mock_build_queue(items, source, **kwargs):
             build_called.append(True)
@@ -76,7 +76,7 @@ class TestCLIArgParsing:
             return MagicMock()
 
         monkeypatch.setattr(
-            "thresher.controller.scanner.scan_files",
+            "thresher.controller.scanner.scan_direct_files",
             mock_scan_files,
         )
         monkeypatch.setattr(
@@ -98,7 +98,7 @@ class TestCLIArgParsing:
         """Controller should accept --log-level flag."""
 
         def mock_scan(source, config):
-            return []
+            return [], []
 
         def mock_create_source(config):
             from unittest.mock import MagicMock
@@ -106,7 +106,7 @@ class TestCLIArgParsing:
             return MagicMock()
 
         monkeypatch.setattr(
-            "thresher.controller.scanner.scan_files",
+            "thresher.controller.scanner.scan_direct_files",
             mock_scan,
         )
         monkeypatch.setattr(
@@ -128,7 +128,7 @@ class TestCLIArgParsing:
         """Controller should accept --config flag."""
 
         def mock_scan(source, config):
-            return []
+            return [], []
 
         def mock_create_source(config):
             from unittest.mock import MagicMock
@@ -136,7 +136,7 @@ class TestCLIArgParsing:
             return MagicMock()
 
         monkeypatch.setattr(
-            "thresher.controller.scanner.scan_files",
+            "thresher.controller.scanner.scan_direct_files",
             mock_scan,
         )
         monkeypatch.setattr(
