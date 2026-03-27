@@ -24,13 +24,13 @@ WORKDIR /app
 # Install uv for fast dependency management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy project files and install dependencies
+# Copy project files and install dependencies (project itself not installed —
+# python -m thresher finds the package via WORKDIR)
 # Uses CPU-only torch for smaller image size
 COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen --no-install-project --extra-index-url https://download.pytorch.org/whl/cpu
 
 COPY thresher/ thresher/
-RUN uv sync --no-dev --frozen --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Pre-download docling models so they're baked into the image
 ENV HF_HOME=/app/.cache/huggingface
