@@ -504,3 +504,95 @@ class TestCLIK8sManifestOut:
 
         assert result == 0
         assert not out_file.exists()
+
+
+
+class TestBuildExpansionJobSpecs:
+    """Tests for expansion Job spec generation."""
+
+    def test_generates_one_spec_per_archive(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(image="test:v1", namespace="test-ns")
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(["source/a.zip", "source/b.tar.gz"])
+
+        assert len(specs) == 2
+
+    def test_job_name_format(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(image="test:v1", namespace="ns")
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(["source/mydata.zip"])
+
+        assert specs[0]["metadata"]["name"] == "thresher-expander-mydata"
+
+    def test_expander_labels(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(image="test:v1", namespace="ns")
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(["source/test.zip"])
+
+        labels = specs[0]["metadata"]["labels"]
+        assert labels["app"] == "thresher"
+        assert labels["component"] == "expander"
+
+    def test_container_args_include_archive_path(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(image="test:v1", namespace="ns")
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(["source/data.zip"])
+
+        container = specs[0]["spec"]["template"]["spec"]["containers"][0]
+        assert "expander" in container["args"]
+        assert "--archive-path" in container["args"]
+        assert "source/data.zip" in container["args"]
+
+    def test_backoff_limit_is_one(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(image="test:v1", namespace="ns")
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(["source/test.zip"])
+
+        assert specs[0]["spec"]["backoffLimit"] == 1
+
+    def test_empty_archive_list(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+
+        config = _make_config(image="test:v1", namespace="ns")
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs([])
+
+        assert specs == []
+
+    def test_container_name_is_expander(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(image="test:v1", namespace="ns")
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(["source/test.zip"])
+
+        container = specs[0]["spec"]["template"]["spec"]["containers"][0]
+        assert container["name"] == "expander"

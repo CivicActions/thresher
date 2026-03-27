@@ -47,6 +47,11 @@ def main(argv: list[str] | None = None) -> int:
     runner.add_argument("--runner-id", required=True, help="Unique runner identifier")
     runner.add_argument("--force", action="store_true", help="Force reprocess all files")
 
+    # Expander subcommand
+    exp = subparsers.add_parser("expander", help="Expand a single archive")
+    exp.add_argument("--archive-path", required=True, help="GCS path of archive to expand")
+    exp.add_argument("--force", action="store_true", help="Re-expand even if record exists")
+
     args = parser.parse_args(argv)
     setup_logging(level=args.log_level)
 
@@ -56,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_controller(config, args)
     elif args.command == "runner":
         return _run_runner(config, args)
+    elif args.command == "expander":
+        return _run_expander(config, args)
 
     return 1
 
@@ -177,6 +184,44 @@ def _run_local(config, source) -> int:
         return 0 if failed == 0 else 1
     finally:
         destination.close()
+
+
+def _run_expander(config, args) -> int:
+    """Expand a single archive (invoked by K8s expansion jobs)."""
+    import logging
+
+    from thresher.controller.archive_expander import ArchiveExpander
+    from thresher.runner.processor import create_source_provider
+
+    logger = logging.getLogger("thresher.cli")
+    source = create_source_provider(config)
+    archive_path = args.archive_path
+
+    expander = ArchiveExpander(
+        source=source,
+        expanded_prefix=config.source.gcs.expanded_prefix,
+        max_depth=config.processing.archive_depth,
+        exclude_extensions=config.processing.archive_exclude_extensions,
+    )
+
+    # Check idempotency (unless --force)
+    if not getattr(args, "force", False):
+        record = expander._load_expansion_record(archive_path)
+        if record is not None:
+            logger.info(
+                "Archive already expanded: %s (%d members) — skipping",
+                archive_path,
+                record.member_count,
+            )
+            return 0
+
+    try:
+        results = expander._expand_single(archive_path, depth=0)
+        logger.info("Expanded %s: %d files", archive_path, len(results))
+        return 0
+    except Exception as e:
+        logger.error("Failed to expand %s: %s", archive_path, e)
+        return 1
 
 
 def _run_runner(config, args) -> int:

@@ -31,9 +31,9 @@
 
 **⚠️ CRITICAL**: US1 and US3 cannot proceed until the scanner is split
 
-- [ ] T006 Refactor `scan_files()` in `thresher/controller/scanner.py` into `scan_direct_files(source, config)` (returns direct file dicts + archive FileInfo list) and `scan_expanded_files(source, config)` (scans expanded prefix, returns expanded file dicts). Keep `scan_files()` as a backward-compatible wrapper that calls both.
-- [ ] T007 Update scanner tests in `tests/unit/test_controller.py` for split methods: test `scan_direct_files()` returns archives separately, test `scan_expanded_files()` returns expanded items, test `scan_files()` wrapper still works
-- [ ] T008 [P] Add `max_expansion_parallelism`, `upload_batch_size`, and `expansion_timeout` fields with comments to `config.example.yaml`
+- [X] T006 Refactor `scan_files()` in `thresher/controller/scanner.py` into `scan_direct_files(source, config)` (returns direct file dicts + archive FileInfo list) and `scan_expanded_files(source, config)` (scans expanded prefix, returns expanded file dicts). Keep `scan_files()` as a backward-compatible wrapper that calls both.
+- [X] T007 Update scanner tests in `tests/unit/test_controller.py` for split methods: test `scan_direct_files()` returns archives separately, test `scan_expanded_files()` returns expanded items, test `scan_files()` wrapper still works
+- [X] T008 [P] Add `max_expansion_parallelism`, `upload_batch_size`, and `expansion_timeout` fields with comments to `config.example.yaml`
 
 **Checkpoint**: `scan_direct_files()` and `scan_expanded_files()` work independently; existing `scan_files()` behavior unchanged
 
