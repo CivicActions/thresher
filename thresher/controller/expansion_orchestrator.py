@@ -29,6 +29,7 @@ class ExpansionOrchestrator:
             expanded_prefix=self._config.source.gcs.expanded_prefix,
             max_depth=self._config.processing.archive_depth,
             exclude_extensions=self._config.processing.archive_exclude_extensions,
+            upload_batch_size=self._config.processing.upload_batch_size,
         )
 
     def _is_already_expanded(self, archive_path: str) -> bool:

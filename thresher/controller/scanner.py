@@ -177,6 +177,7 @@ def scan_files(
             expanded_prefix=config.source.gcs.expanded_prefix,
             max_depth=config.processing.archive_depth,
             exclude_extensions=config.processing.archive_exclude_extensions,
+            upload_batch_size=config.processing.upload_batch_size,
         )
         skipped = 0
         for exp in expander.expand_archives(archives):
