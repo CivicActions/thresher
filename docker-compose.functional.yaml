@@ -10,7 +10,7 @@ services:
       - "4443:4443"
     command: ["-scheme", "http", "-port", "4443", "-backend", "memory"]
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4443/storage/v1/b"]
+      test: ["CMD-SHELL", "echo > /dev/tcp/localhost/4443"]
       interval: 2s
       timeout: 5s
       retries: 10
@@ -24,7 +24,7 @@ services:
     environment:
       QDRANT__SERVICE__GRPC_PORT: "6334"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:6333/healthz"]
+      test: ["CMD-SHELL", "echo > /dev/tcp/localhost/6333"]
       interval: 2s
       timeout: 5s
       retries: 10
