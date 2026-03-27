@@ -216,3 +216,32 @@ class TestSchemaAcceptsValid:
             }
         )
         assert errors == []
+
+
+    def test_expansion_config_valid(self):
+        errors = validate_config(
+            {
+                "processing": {
+                    "max_expansion_parallelism": 10,
+                    "upload_batch_size": 100,
+                    "expansion_timeout": 7200,
+                }
+            }
+        )
+        assert errors == []
+
+
+class TestSchemaRejectsInvalidExpansion:
+    """Schema rejects invalid expansion config values."""
+
+    def test_zero_expansion_parallelism(self):
+        errors = validate_config({"processing": {"max_expansion_parallelism": 0}})
+        assert any("max_expansion_parallelism" in e for e in errors)
+
+    def test_negative_upload_batch_size(self):
+        errors = validate_config({"processing": {"upload_batch_size": -1}})
+        assert any("upload_batch_size" in e for e in errors)
+
+    def test_string_expansion_timeout(self):
+        errors = validate_config({"processing": {"expansion_timeout": "slow"}})
+        assert any("expansion_timeout" in e for e in errors)

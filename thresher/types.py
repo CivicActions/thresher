@@ -105,6 +105,19 @@ class ExpansionRecord:
     archive_hash: str | None = None
 
 
+
+
+@dataclass
+class ExpansionResult:
+    """Summary of a parallel archive expansion phase."""
+
+    archives_expanded: int
+    archives_failed: int
+    files_extracted: int
+    duration_seconds: float
+    failed_archives: list[str] = field(default_factory=list)
+
+
 @dataclass
 class IndexChunk:
     """A single chunk ready for indexing with its embedding."""

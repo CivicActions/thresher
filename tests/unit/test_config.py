@@ -330,3 +330,38 @@ class TestParseFileTypeGroups:
         assert grp.extensions == [".test"]
         assert grp.chunker.strategy == "test-strat"
         assert grp.priority == 100  # default
+
+
+# ---------------------------------------------------------------------------
+# Expansion config fields
+# ---------------------------------------------------------------------------
+
+
+class TestExpansionConfigFields:
+    """Tests for new parallel expansion configuration fields."""
+
+    def test_default_max_expansion_parallelism(self):
+        cfg = load_config()
+        assert cfg.processing.max_expansion_parallelism == 5
+
+    def test_default_upload_batch_size(self):
+        cfg = load_config()
+        assert cfg.processing.upload_batch_size == 50
+
+    def test_default_expansion_timeout(self):
+        cfg = load_config()
+        assert cfg.processing.expansion_timeout == 3600
+
+    def test_user_override_expansion_fields(self, tmp_path):
+        user_file = tmp_path / "user.yaml"
+        user_file.write_text(
+            "processing:\n"
+            "  max_expansion_parallelism: 10\n"
+            "  upload_batch_size: 100\n"
+            "  expansion_timeout: 7200\n",
+            encoding="utf-8",
+        )
+        cfg = load_config(user_file)
+        assert cfg.processing.max_expansion_parallelism == 10
+        assert cfg.processing.upload_batch_size == 100
+        assert cfg.processing.expansion_timeout == 7200
