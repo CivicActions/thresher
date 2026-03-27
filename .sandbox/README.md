@@ -127,9 +127,9 @@ sed -i 's/manylinux2014_sbsa/manylinux2014_aarch64/' \
 
 **Symptom**: `ProxyError: Tunnel connection failed: 502 Bad Gateway` when the K8s orchestrator talks to `127.0.0.1:6443`, or pipeline e2e tests skip with `Embedding model not available` (models can't be fetched with proxy unset).
 
-**Cause**: The Python `kubernetes` client's urllib3 pool manager doesn't respect `NO_PROXY` for local addresses. The workaround (unsetting `HTTPS_PROXY`/`HTTP_PROXY`) also blocks direct connections to huggingface.co.
+**Cause**: The Python `kubernetes` client's urllib3 pool manager doesn't respect `NO_PROXY` for local addresses. The proxy server (`host.docker.internal:3128`) rejects forwarding to localhost, causing all k8s API calls to fail.
 
-**Fix**: `sandbox-init.sh` pre-downloads ML models while the proxy is active, then sets `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` so tests use cached models. The `run-functional-tests` alias unsets proxy vars automatically.
+**Fix**: The `k8s_cluster` fixture in `tests/functional/conftest.py` unsets `HTTPS_PROXY`/`HTTP_PROXY` at session start so the k8s client connects directly to the local cluster. `sandbox-init.sh` also pre-downloads ML models while the proxy is active and sets `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` so tests use cached models without needing the proxy.
 
 ## File reference
 

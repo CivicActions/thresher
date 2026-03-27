@@ -263,6 +263,12 @@ def _extract_kubeconfig() -> str | None:
 @pytest.fixture(scope="session")
 def k8s_cluster():
     """Ensure a K8s cluster is available and return the kubeconfig path."""
+    # The Python kubernetes client's urllib3 pool manager routes all HTTPS traffic
+    # through HTTPS_PROXY (including localhost), and proxy servers refuse to forward
+    # to local addresses. Unset proxy vars so the k8s client connects directly.
+    for _var in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy"):
+        os.environ.pop(_var, None)
+
     existing = os.environ.get("KUBECONFIG")
     if existing and os.path.isfile(existing) and _wait_for_k8s_api(existing, timeout=5):
         yield existing
