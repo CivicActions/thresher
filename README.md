@@ -58,6 +58,12 @@ Options:
   --force    Force reprocess all claimed files
 ```
 
+### Expander — expand a single archive (used by K8s Jobs)
+
+```bash
+thresher expander --config config.yaml --archive-path source/archive.zip
+```
+
 ## Configuration
 
 Configuration merges three layers: built-in defaults → YAML config → environment variables.
@@ -69,10 +75,20 @@ Configuration merges three layers: built-in defaults → YAML config → environ
 | `file_type_groups` | File classification & processing | Extensions, MIME types, extractor, chunker strategy, max size |
 | `routing` | File → collection mapping | Rules with path/filename/file-group matchers, default collection |
 | `embedding` | Vector embedding model | Model name, vector size, max tokens |
-| `processing` | Timeouts, retries, memory limits | `per_file_timeout`, `retry_max`, `memory_threshold_mb` |
+| `processing` | Timeouts, retries, memory, **expansion** | `per_file_timeout`, `retry_max`, `memory_threshold_mb`, `max_expansion_parallelism`, `upload_batch_size`, `expansion_timeout` |
 | `queue` | Batch sizing and lease management | `batch_size`, `lease_timeout` |
 | `kubernetes` | Runner Job configuration | Image, resources, parallelism, tolerations |
 | `url_resolvers` | Source URL reconstruction | httrack, regex pattern, domain-first resolvers |
+
+### Archive Expansion Settings
+
+Archives (zip, tar, gz, etc.) are expanded in parallel before the main processing phase:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `processing.max_expansion_parallelism` | `5` | Max concurrent expansion workers (local) or K8s Jobs |
+| `processing.upload_batch_size` | `10` | Files uploaded concurrently per expansion job |
+| `processing.expansion_timeout` | `600` | Seconds before an expansion job is considered timed out |
 
 Environment variables: `GCS_BUCKET`, `QDRANT_URL`, `QDRANT_API_KEY`.
 
@@ -99,7 +115,7 @@ docker run \
 ## Testing
 
 ```bash
-# Unit tests (~470 tests)
+# Unit tests (~500 tests)
 uv run pytest tests/unit/ -v
 
 # Functional tests (requires Docker services)

@@ -83,10 +83,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] Integrate expansion phase into controller command handler in `thresher/cli.py`: after `scan_direct_files()`, if archives found, call `ExpansionOrchestrator.expand_local()` (for `--local`) or `expand_k8s()` (for `--k8s-deploy`), then call `scan_expanded_files()`, merge results, build queue batches from combined list
-- [ ] T020 [US3] Add structured progress logging to `ExpansionOrchestrator` in `thresher/controller/expansion_orchestrator.py`: log job deployment count, periodic progress (N/total complete, M failed), final summary (archives expanded, files extracted, failures, duration) per quickstart.md monitoring format
-- [ ] T021 [US3] Implement expansion timeout and failure aggregation in `ExpansionOrchestrator`: raise `TimeoutError` with summary if `expansion_timeout` exceeded; populate `ExpansionResult.failed_archives`; log warnings for each failed archive; continue with successful expansions
-- [ ] T022 [P] [US3] Create `tests/functional/test_expansion_e2e.py` with GCS-based tests: upload multiple small ZIPs to fake-gcs-server, run controller in local mode, verify expansion records written for all archives, verify processing queue includes both direct and expanded files
+- [X] T019 [US3] Integrate expansion phase into controller command handler in `thresher/cli.py`: after `scan_direct_files()`, if archives found, call `ExpansionOrchestrator.expand_local()` (for `--local`) or `expand_k8s()` (for `--k8s-deploy`), then call `scan_expanded_files()`, merge results, build queue batches from combined list
+- [X] T020 [US3] Add structured progress logging to `ExpansionOrchestrator` in `thresher/controller/expansion_orchestrator.py`: log job deployment count, periodic progress (N/total complete, M failed), final summary (archives expanded, files extracted, failures, duration) per quickstart.md monitoring format
+- [X] T021 [US3] Implement expansion timeout and failure aggregation in `ExpansionOrchestrator`: raise `TimeoutError` with summary if `expansion_timeout` exceeded; populate `ExpansionResult.failed_archives`; log warnings for each failed archive; continue with successful expansions
+- [X] T022 [P] [US3] Create `tests/functional/test_expansion_e2e.py` with GCS-based tests: upload multiple small ZIPs to fake-gcs-server, run controller in local mode, verify expansion records written for all archives, verify processing queue includes both direct and expanded files
 
 **Checkpoint**: Full pipeline works: scan → expand (parallel) → rescan → build queue → process; progress visible in logs; failures handled gracefully
 
@@ -96,10 +96,10 @@
 
 **Purpose**: Documentation, validation, cleanup
 
-- [ ] T023 [P] Update `docs/architecture.md` with expansion phase: add expansion orchestrator to pipeline diagram, document two-phase scan flow, describe K8s expansion job lifecycle
-- [ ] T024 [P] Update `README.md` configuration section with `max_expansion_parallelism`, `upload_batch_size`, `expansion_timeout` fields and parallel expansion overview
-- [ ] T025 Run quickstart.md scenarios (local mode, K8s mode, manual expansion) and verify documented commands work correctly
-- [ ] T026 Run full test suite (`uv run pytest`) and verify zero regressions across all unit, functional, and integration tests
+- [X] T023 [P] Update `docs/architecture.md` with expansion phase: add expansion orchestrator to pipeline diagram, document two-phase scan flow, describe K8s expansion job lifecycle
+- [X] T024 [P] Update `README.md` configuration section with `max_expansion_parallelism`, `upload_batch_size`, `expansion_timeout` fields and parallel expansion overview
+- [X] T025 Run quickstart.md scenarios (local mode, K8s mode, manual expansion) and verify documented commands work correctly
+- [X] T026 Run full test suite (`uv run pytest`) and verify zero regressions across all unit, functional, and integration tests
 
 ---
 
