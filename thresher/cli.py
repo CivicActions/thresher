@@ -35,6 +35,12 @@ def main(argv: list[str] | None = None) -> int:
     ctrl.add_argument("--k8s-deploy", action="store_true", help="Create runner K8s Jobs")
     ctrl.add_argument("--k8s-manifest-out", help="Export runner manifests to file")
     ctrl.add_argument("--force", action="store_true", help="Force reprocess all files")
+    ctrl.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit the number of files to process (for testing)",
+    )
 
     # Runner subcommand
     runner = subparsers.add_parser("runner", help="Process files from queue")
@@ -78,6 +84,9 @@ def _run_controller(config, args) -> int:
 
     # Scan
     items = scan_files(source, config)
+
+    if args.limit is not None and len(items) > args.limit:
+        items = items[: args.limit]
 
     if args.dry_run:
         from thresher.controller.scanner import scan_summary
