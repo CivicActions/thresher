@@ -135,8 +135,6 @@ class TestScanFiles:
         assert items == []
 
 
-
-
 class TestScanDirectFiles:
     """Tests for scan_direct_files (archives returned separately)."""
 

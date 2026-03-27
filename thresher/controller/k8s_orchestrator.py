@@ -236,15 +236,16 @@ class K8sOrchestrator:
 
             volumes: list[dict[str, Any]] = []
             if self.k8s.config_configmap:
-                volumes.append(
-                    {"name": "config", "configMap": {"name": self.k8s.config_configmap}}
-                )
+                volumes.append({"name": "config", "configMap": {"name": self.k8s.config_configmap}})
                 container["volumeMounts"].append(
                     {"name": "config", "mountPath": "/config", "readOnly": True}
                 )
             if self.k8s.credentials_secret:
                 volumes.append(
-                    {"name": "gcs-credentials", "secret": {"secretName": self.k8s.credentials_secret}}
+                    {
+                        "name": "gcs-credentials",
+                        "secret": {"secretName": self.k8s.credentials_secret},
+                    }
                 )
                 container["volumeMounts"].append(
                     {"name": "gcs-credentials", "mountPath": "/secrets/gcs", "readOnly": True}

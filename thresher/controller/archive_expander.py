@@ -14,8 +14,8 @@ import tempfile
 import time
 import zipfile
 from collections.abc import Callable
-from pathlib import Path, PurePosixPath
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path, PurePosixPath
 from typing import IO, Any, Iterator
 
 from thresher.providers.source import SourceProvider
@@ -322,10 +322,14 @@ class ArchiveExpander:
                     return remote_path, None
                 except Exception as e:
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)
+                        delay = base_delay * (2**attempt)
                         logger.debug(
                             "Upload retry %d/%d for %s: %s (delay %.1fs)",
-                            attempt + 1, max_retries, remote_path, e, delay,
+                            attempt + 1,
+                            max_retries,
+                            remote_path,
+                            e,
+                            delay,
                         )
                         time.sleep(delay)
                     else:
@@ -345,9 +349,7 @@ class ArchiveExpander:
 
         errors = []
         with ThreadPoolExecutor(max_workers=self._upload_batch_size) as pool:
-            futures = {
-                pool.submit(_upload_one, rp, lp): rp for rp, lp in files
-            }
+            futures = {pool.submit(_upload_one, rp, lp): rp for rp, lp in files}
             for future in as_completed(futures):
                 path, err = future.result()
                 if err:

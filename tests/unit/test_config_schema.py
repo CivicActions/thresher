@@ -217,7 +217,6 @@ class TestSchemaAcceptsValid:
         )
         assert errors == []
 
-
     def test_expansion_config_valid(self):
         errors = validate_config(
             {

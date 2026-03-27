@@ -506,7 +506,6 @@ class TestCLIK8sManifestOut:
         assert not out_file.exists()
 
 
-
 class TestBuildExpansionJobSpecs:
     """Tests for expansion Job spec generation."""
 

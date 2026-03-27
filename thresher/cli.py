@@ -110,9 +110,7 @@ def _run_controller(config, args) -> int:
             expansion_result = orch.expand_local(archives)
 
         if expansion_result.failed_archives:
-            logger.warning(
-                "Failed archives: %s", ", ".join(expansion_result.failed_archives)
-            )
+            logger.warning("Failed archives: %s", ", ".join(expansion_result.failed_archives))
 
         # Phase 1c: Scan expanded files
         expanded_items = scan_expanded_files(source, config)

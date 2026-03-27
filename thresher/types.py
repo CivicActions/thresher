@@ -105,8 +105,6 @@ class ExpansionRecord:
     archive_hash: str | None = None
 
 
-
-
 @dataclass
 class ExpansionResult:
     """Summary of a parallel archive expansion phase."""

@@ -346,9 +346,7 @@ def _build_config(raw: dict[str, Any]) -> Config:
                 proc_raw.get("summary_interval", 100) if isinstance(proc_raw, dict) else 100
             ),
             max_expansion_parallelism=int(
-                proc_raw.get("max_expansion_parallelism", 5)
-                if isinstance(proc_raw, dict)
-                else 5
+                proc_raw.get("max_expansion_parallelism", 5) if isinstance(proc_raw, dict) else 5
             ),
             upload_batch_size=int(
                 proc_raw.get("upload_batch_size", 50) if isinstance(proc_raw, dict) else 50

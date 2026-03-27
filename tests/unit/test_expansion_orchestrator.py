@@ -8,14 +8,11 @@ import time
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from thresher.config import Config, GCSConfig, ProcessingConfig, SourceConfig
 from thresher.controller.expansion_orchestrator import ExpansionOrchestrator
 from thresher.types import ExpansionResult, FileInfo
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -30,15 +27,13 @@ def _make_zip(files: dict[str, bytes]) -> bytes:
     return buf.getvalue()
 
 
-def _make_config(**overrides) -> Config:
+def _make_config(**overrides: int) -> Config:
     cfg = Config()
-    proc_kwargs = {
-        "max_expansion_parallelism": 2,
-        "upload_batch_size": 10,
-        "expansion_timeout": 60,
-    }
-    proc_kwargs.update(overrides)
-    cfg.processing = ProcessingConfig(**proc_kwargs)
+    cfg.processing = ProcessingConfig(
+        max_expansion_parallelism=overrides.get("max_expansion_parallelism", 2),
+        upload_batch_size=overrides.get("upload_batch_size", 10),
+        expansion_timeout=overrides.get("expansion_timeout", 60),
+    )
     cfg.source = SourceConfig(
         provider="gcs",
         gcs=GCSConfig(
@@ -115,9 +110,7 @@ class TestExpandLocal:
     def test_expands_multiple_archives(self):
         zip1 = _make_zip({"a.txt": b"aaa"})
         zip2 = _make_zip({"b.txt": b"bbb", "c.txt": b"ccc"})
-        source = _mock_source_with_archives(
-            {"source/one.zip": zip1, "source/two.zip": zip2}
-        )
+        source = _mock_source_with_archives({"source/one.zip": zip1, "source/two.zip": zip2})
         config = _make_config()
 
         orch = ExpansionOrchestrator(config, source)
@@ -159,17 +152,21 @@ class TestIdempotency:
 
     def test_skips_already_expanded(self):
         archive_bytes = _make_zip({"readme.txt": b"hello"})
-        record = json.dumps({
-            "archive_path": "source/test.zip",
-            "expansion_folder": "expanded/source/test",
-            "member_count": 1,
-            "expanded_at": time.time(),
-            "archive_hash": "abc123",
-        }).encode()
-        source = _mock_source_with_archives({
-            "source/test.zip": archive_bytes,
-            "expanded/source/test/.expansion-record.json": record,
-        })
+        record = json.dumps(
+            {
+                "archive_path": "source/test.zip",
+                "expansion_folder": "expanded/source/test",
+                "member_count": 1,
+                "expanded_at": time.time(),
+                "archive_hash": "abc123",
+            }
+        ).encode()
+        source = _mock_source_with_archives(
+            {
+                "source/test.zip": archive_bytes,
+                "expanded/source/test/.expansion-record.json": record,
+            }
+        )
         config = _make_config()
 
         orch = ExpansionOrchestrator(config, source)
@@ -183,18 +180,22 @@ class TestIdempotency:
     def test_expands_mix_of_new_and_existing(self):
         zip1 = _make_zip({"a.txt": b"aaa"})
         zip2 = _make_zip({"b.txt": b"bbb"})
-        record = json.dumps({
-            "archive_path": "source/existing.zip",
-            "expansion_folder": "expanded/source/existing",
-            "member_count": 1,
-            "expanded_at": time.time(),
-            "archive_hash": "abc",
-        }).encode()
-        source = _mock_source_with_archives({
-            "source/existing.zip": zip1,
-            "source/new.zip": zip2,
-            "expanded/source/existing/.expansion-record.json": record,
-        })
+        record = json.dumps(
+            {
+                "archive_path": "source/existing.zip",
+                "expansion_folder": "expanded/source/existing",
+                "member_count": 1,
+                "expanded_at": time.time(),
+                "archive_hash": "abc",
+            }
+        ).encode()
+        source = _mock_source_with_archives(
+            {
+                "source/existing.zip": zip1,
+                "source/new.zip": zip2,
+                "expanded/source/existing/.expansion-record.json": record,
+            }
+        )
         config = _make_config()
 
         orch = ExpansionOrchestrator(config, source)
@@ -215,11 +216,13 @@ class TestExpandLocalParallelism:
     def test_uses_configured_parallelism(self):
         """Verify thread pool uses max_expansion_parallelism."""
         zip_data = _make_zip({"file.txt": b"data"})
-        source = _mock_source_with_archives({
-            "source/a.zip": zip_data,
-            "source/b.zip": zip_data,
-            "source/c.zip": zip_data,
-        })
+        source = _mock_source_with_archives(
+            {
+                "source/a.zip": zip_data,
+                "source/b.zip": zip_data,
+                "source/c.zip": zip_data,
+            }
+        )
         config = _make_config(max_expansion_parallelism=2)
 
         orch = ExpansionOrchestrator(config, source)
