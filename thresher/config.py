@@ -109,6 +109,8 @@ class K8sConfig:
     tolerations: list[dict[str, Any]] = field(default_factory=list)
     backoff_limit: int = 3
     ttl_seconds_after_finished: int = 3600
+    config_configmap: str = ""
+    credentials_secret: str = ""
 
 
 @dataclass
@@ -394,6 +396,12 @@ def _build_config(raw: dict[str, Any]) -> Config:
                 k8s_raw.get("ttl_seconds_after_finished", 3600)
                 if isinstance(k8s_raw, dict)
                 else 3600
+            ),
+            config_configmap=str(
+                k8s_raw.get("config_configmap", "") if isinstance(k8s_raw, dict) else ""
+            ),
+            credentials_secret=str(
+                k8s_raw.get("credentials_secret", "") if isinstance(k8s_raw, dict) else ""
             ),
         ),
         url_resolvers=parse_url_resolvers(raw.get("url_resolvers")),

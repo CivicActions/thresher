@@ -99,11 +99,17 @@ class K8sOrchestrator:
 
     def _build_pod_spec(self, image: str, runner_id: str) -> dict[str, Any]:
         """Build the pod spec for a runner Job."""
+        args = ["runner", "--runner-id", runner_id]
+
+        # If a config ConfigMap is set, pass -c to the runner
+        if self.k8s.config_configmap:
+            args = ["-c", "/config/config.yaml"] + args
+
         container: dict[str, Any] = {
             "name": "runner",
             "image": image,
             "imagePullPolicy": self.k8s.image_pull_policy,
-            "args": ["runner", "--runner-id", runner_id],
+            "args": args,
             "resources": {
                 "requests": {},
                 "limits": {},
@@ -111,6 +117,7 @@ class K8sOrchestrator:
             "env": [
                 {"name": "THRESHER_RUNNER_ID", "value": runner_id},
             ],
+            "volumeMounts": [],
         }
 
         if self.k8s.runner_resources.requests.cpu:
@@ -127,16 +134,51 @@ class K8sOrchestrator:
             "GCS_BUCKET",
             "QDRANT_URL",
             "QDRANT_API_KEY",
-            "GOOGLE_APPLICATION_CREDENTIALS",
         ):
             val = os.environ.get(env_var)
             if val:
                 container["env"].append({"name": env_var, "value": val})
 
+        volumes: list[dict[str, Any]] = []
+
+        # Mount config ConfigMap
+        if self.k8s.config_configmap:
+            volumes.append(
+                {
+                    "name": "config",
+                    "configMap": {"name": self.k8s.config_configmap},
+                }
+            )
+            container["volumeMounts"].append(
+                {"name": "config", "mountPath": "/config", "readOnly": True}
+            )
+
+        # Mount GCS credentials Secret
+        if self.k8s.credentials_secret:
+            volumes.append(
+                {
+                    "name": "gcs-credentials",
+                    "secret": {"secretName": self.k8s.credentials_secret},
+                }
+            )
+            container["volumeMounts"].append(
+                {"name": "gcs-credentials", "mountPath": "/secrets/gcs", "readOnly": True}
+            )
+            container["env"].append(
+                {"name": "GOOGLE_APPLICATION_CREDENTIALS", "value": "/secrets/gcs/key.json"}
+            )
+
+        # Clean up empty volumeMounts
+        if not container["volumeMounts"]:
+            del container["volumeMounts"]
+
         pod_spec: dict[str, Any] = {
             "containers": [container],
             "restartPolicy": "Never",
         }
+
+        if volumes:
+            pod_spec["volumes"] = volumes
 
         if self.k8s.service_account:
             pod_spec["serviceAccountName"] = self.k8s.service_account
