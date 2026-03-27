@@ -81,6 +81,9 @@ routing:
 #     - ".egg"
 #     - ".apk"
 #     - ".ipa"
+#   max_expansion_parallelism: 5          # Concurrent expansion jobs (K8s) or threads (local)
+#   upload_batch_size: 50                 # Concurrent file uploads per expansion job
+#   expansion_timeout: 3600              # Max seconds to wait for expansion phase
 
 # --- Embedding Settings ---
 # embedding:

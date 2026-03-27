@@ -42,14 +42,15 @@ def update_skip_list(source: SourceProvider, queue_prefix: str, paths: list[str]
     _save_skip_list(source, queue_prefix, skip_list)
 
 
-def scan_files(
+def scan_direct_files(
     source: SourceProvider,
     config: Config,
-) -> list[dict]:
-    """Scan source provider for processable files.
+) -> tuple[list[dict], list[FileInfo]]:
+    """Scan source for direct (non-archive) files and collect archives.
 
-    Returns list of dicts with: path, source_type, file_type_group, file_size.
-    Archives are expanded and their members are classified individually.
+    Returns:
+        A tuple of (items, archives) where items are classified file dicts
+        and archives is a list of FileInfo for archive files needing expansion.
     """
     prefix = config.source.gcs.source_prefix
     queue_prefix = config.source.gcs.queue_prefix
@@ -57,7 +58,6 @@ def scan_files(
     archives: list[FileInfo] = []
     skipped = 0
 
-    # Load skip list (unless --force)
     skip_set: set[str] = set()
     if not config.force:
         skip_set = _load_skip_list(source, queue_prefix)
@@ -68,21 +68,17 @@ def scan_files(
 
     skip_list_skipped = 0
     for file_info in source.list_files(prefix=prefix, recursive=True):
-        # Skip directories
         if file_info.path.endswith("/"):
             continue
 
-        # Collect archives for expansion instead of classifying them
         if is_archive(file_info.path):
             archives.append(file_info)
             continue
 
-        # Skip list check
         if file_info.path in skip_set:
             skip_list_skipped += 1
             continue
 
-        # Classify without content (extension-only for controller)
         group = classify_file(file_info.path, config.file_type_groups)
 
         if group is None:
@@ -98,7 +94,82 @@ def scan_files(
             }
         )
 
-    # Expand archives and classify the expanded files
+    if skip_list_skipped:
+        logger.info("Skip list filtered %d previously-processed files", skip_list_skipped)
+    logger.info(
+        "Direct scan complete: %d files queued, %d archives found, %d skipped",
+        len(items),
+        len(archives),
+        skipped,
+    )
+    return items, archives
+
+
+def scan_expanded_files(
+    source: SourceProvider,
+    config: Config,
+) -> list[dict]:
+    """Scan the expanded prefix for files from previously-expanded archives.
+
+    Returns list of dicts with: path, source_type, file_type_group, file_size, archive_path.
+    """
+    expanded_prefix = config.source.gcs.expanded_prefix
+    queue_prefix = config.source.gcs.queue_prefix
+    items: list[dict] = []
+    skipped = 0
+
+    skip_set: set[str] = set()
+    if not config.force:
+        skip_set = _load_skip_list(source, queue_prefix)
+
+    logger.info("Scanning expanded files with prefix: %s", expanded_prefix)
+
+    for file_info in source.list_files(prefix=expanded_prefix, recursive=True):
+        if file_info.path.endswith("/"):
+            continue
+        if file_info.path.endswith(".expansion-record.json"):
+            continue
+
+        if file_info.path in skip_set:
+            continue
+
+        group = classify_file(file_info.path, config.file_type_groups)
+        if group is None:
+            skipped += 1
+            continue
+
+        items.append(
+            {
+                "path": file_info.path,
+                "source_type": "expanded",
+                "file_type_group": group,
+                "file_size": file_info.size,
+                "archive_path": None,
+            }
+        )
+
+    logger.info("Expanded scan complete: %d files queued, %d skipped", len(items), skipped)
+    return items
+
+
+def scan_files(
+    source: SourceProvider,
+    config: Config,
+) -> list[dict]:
+    """Scan source provider for processable files.
+
+    Returns list of dicts with: path, source_type, file_type_group, file_size.
+    Archives are expanded and their members are classified individually.
+
+    This is a backward-compatible wrapper around scan_direct_files + inline expansion.
+    """
+    items, archives = scan_direct_files(source, config)
+
+    queue_prefix = config.source.gcs.queue_prefix
+    skip_set: set[str] = set()
+    if not config.force:
+        skip_set = _load_skip_list(source, queue_prefix)
+
     if archives:
         logger.info("Expanding %d archive(s)", len(archives))
         expander = ArchiveExpander(
@@ -107,9 +178,9 @@ def scan_files(
             max_depth=config.processing.archive_depth,
             exclude_extensions=config.processing.archive_exclude_extensions,
         )
+        skipped = 0
         for exp in expander.expand_archives(archives):
             if exp["path"] in skip_set:
-                skip_list_skipped += 1
                 continue
             group = classify_file(exp["path"], config.file_type_groups)
             if group is None:
@@ -125,9 +196,7 @@ def scan_files(
                 }
             )
 
-    if skip_list_skipped:
-        logger.info("Skip list filtered %d previously-processed files", skip_list_skipped)
-    logger.info("Scan complete: %d files queued, %d skipped", len(items), skipped)
+    logger.info("Scan complete: %d files queued", len(items))
     return items
 
 

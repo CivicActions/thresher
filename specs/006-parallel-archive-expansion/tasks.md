@@ -15,11 +15,11 @@
 
 **Purpose**: Add configuration fields and data types needed by all user stories
 
-- [ ] T001 Add `max_expansion_parallelism` (int, default 5), `upload_batch_size` (int, default 50), and `expansion_timeout` (int, default 3600) fields to `ProcessingConfig` dataclass in `thresher/config.py`
-- [ ] T002 [P] Add JSON Schema definitions for the three new processing fields (integer type, minimum 1, descriptions) to the `processing` section of `thresher/config_schema.json`
-- [ ] T003 [P] Add `max_expansion_parallelism: 5`, `upload_batch_size: 50`, `expansion_timeout: 3600` under `processing:` in `thresher/defaults.yaml`
-- [ ] T004 [P] Add `ExpansionResult` dataclass (archives_expanded, archives_failed, files_extracted, duration_seconds, failed_archives) to `thresher/types.py` per data-model.md
-- [ ] T005 Update unit tests for new config fields: add validation tests in `tests/unit/test_config.py` and schema tests in `tests/unit/test_config_schema.py`
+- [X] T001 Add `max_expansion_parallelism` (int, default 5), `upload_batch_size` (int, default 50), and `expansion_timeout` (int, default 3600) fields to `ProcessingConfig` dataclass in `thresher/config.py`
+- [X] T002 [P] Add JSON Schema definitions for the three new processing fields (integer type, minimum 1, descriptions) to the `processing` section of `thresher/config_schema.json`
+- [X] T003 [P] Add `max_expansion_parallelism: 5`, `upload_batch_size: 50`, `expansion_timeout: 3600` under `processing:` in `thresher/defaults.yaml`
+- [X] T004 [P] Add `ExpansionResult` dataclass (archives_expanded, archives_failed, files_extracted, duration_seconds, failed_archives) to `thresher/types.py` per data-model.md
+- [X] T005 Update unit tests for new config fields: add validation tests in `tests/unit/test_config.py` and schema tests in `tests/unit/test_config_schema.py`
 
 **Checkpoint**: Config loads and validates new fields; `ExpansionResult` importable from types
 
