@@ -33,19 +33,30 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # --- uv (latest — base image ships an older version) ---
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# --- Proxy CA bundle fix ---
-# Docker sandbox proxy does MITM on HTTPS. When --bypass-host is used for a
-# domain, the connection goes direct but SSL_CERT_FILE may point to only the
-# proxy CA. This script creates a combined bundle at startup.
-COPY setup-ca-bundle.sh /usr/local/bin/setup-ca-bundle.sh
-RUN chmod +x /usr/local/bin/setup-ca-bundle.sh
+# --- Helper scripts ---
+COPY --chmod=755 setup-ca-bundle.sh /usr/local/bin/setup-ca-bundle.sh
+COPY --chmod=755 start-services.sh /usr/local/bin/start-services.sh
+COPY --chmod=755 sandbox-init.sh /usr/local/bin/sandbox-init.sh
 
-# --- Functional test services startup ---
-COPY start-services.sh /usr/local/bin/start-services.sh
-RUN chmod +x /usr/local/bin/start-services.sh
-
-# --- Sandbox init script (runs on sandbox start) ---
-COPY sandbox-init.sh /usr/local/bin/sandbox-init.sh
-RUN chmod +x /usr/local/bin/sandbox-init.sh
-
+# --- Pre-download ML models ---
+# Download HuggingFace tokenizer and fastembed ONNX model at image build time
+# so they are available offline at runtime (no network needed during tests).
+#
+# Cache locations (default, no env override needed):
+#   fastembed  → /tmp/fastembed_cache  (fastembed uses tempfile.gettempdir())
+#   HF tokenizer → /home/agent/.cache/huggingface/hub
+#
+# Run as agent so the HF cache lands in the agent home dir.
+# A temporary venv is used to install the download deps; it is deleted after
+# the models are cached, keeping the image clean.
+#
+# Note: on the sandbox VM, onnxruntime exits with SIGILL (illegal instruction,
+# exit 132) after successfully writing its first ONNX model to disk. This is a
+# VM CPU-feature detection issue; the models ARE cached before the crash, so
+# `|| true` is used to prevent the RUN step from failing.
+COPY --chown=agent:agent download-models.py /tmp/download-models.py
 USER agent
+RUN uv venv /tmp/model-dl-env && \
+    VIRTUAL_ENV=/tmp/model-dl-env uv pip install --quiet fastembed transformers && \
+    (/tmp/model-dl-env/bin/python /tmp/download-models.py || true) && \
+    rm -rf /tmp/model-dl-env /tmp/download-models.py

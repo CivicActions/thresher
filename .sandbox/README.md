@@ -12,6 +12,7 @@ Pre-configured development environment for the [Docker AI Sandbox](https://docs.
 | libmagic | MIME type detection (python-magic) |
 | CA bundle fix | Combined certifi + proxy CA for `--bypass-host` compatibility |
 | Service launcher | One-command startup for fake-gcs, Qdrant, k3s |
+| ML model pre-download | HF tokenizer + fastembed ONNX cached before proxy is unset for K8s tests |
 
 ## Quick start
 
@@ -62,9 +63,10 @@ docker sandbox network log copilot-thresher
 
 #### 2. Initialize inside the sandbox
 
-Once the sandbox is running, run the init script:
+Once the sandbox is running, run the init script **from the project directory**:
 
 ```bash
+cd /path/to/thresher   # must be run from the project root
 sandbox-init.sh
 . /tmp/thresher-env.sh
 ```
@@ -100,20 +102,42 @@ HTTPS_PROXY= HTTP_PROXY= \
 
 **Fix**: Run `setup-ca-bundle.sh` (or `sandbox-init.sh` which calls it). This creates a combined bundle at `/tmp/combined-ca-bundle.pem` containing both certifi's root CAs and the proxy CA.
 
+### onnxruntime SIGILL during model pre-download
+
+**Symptom**: `sandbox-init.sh` exits with code 132 after model download, skipping service startup.
+
+**Cause**: onnxruntime exits with SIGILL (illegal instruction) after successfully caching its ONNX model in the Docker sandbox VM. Models are cached before the crash, but `set -euo pipefail` treats exit 132 as fatal.
+
+**Fix**: Already handled — `sandbox-init.sh` and the Dockerfile both use `|| true` on the download step. Rebuild the template to pick up the fix.
+
+### nvidia-cusparselt reinstall churn on ARM64
+
+**Symptom**: `uv run` outputs "Uninstalled 1 package / Installed 1 package" (nvidia-cusparselt-cu13) on every invocation, adding ~500ms overhead.
+
+**Cause**: nvidia's aarch64 wheel declares `Tag: py3-none-manylinux2014_sbsa` but ARM64 systems only support `aarch64` tags. uv detects the mismatch and reinstalls every time.
+
+**Fix**: `sandbox-init.sh` auto-patches the WHEEL tag after `uv sync`. To patch manually:
+
+```bash
+sed -i 's/manylinux2014_sbsa/manylinux2014_aarch64/' \
+  .venv/lib/python3.13/site-packages/nvidia_cusparselt_cu13-0.8.0.dist-info/WHEEL
+```
+
 ### K8s Python client ignores NO_PROXY
 
-**Symptom**: `ProxyError: Tunnel connection failed: 502 Bad Gateway` when the K8s orchestrator talks to `127.0.0.1:6443`.
+**Symptom**: `ProxyError: Tunnel connection failed: 502 Bad Gateway` when the K8s orchestrator talks to `127.0.0.1:6443`, or pipeline e2e tests skip with `Embedding model not available` (models can't be fetched with proxy unset).
 
-**Cause**: The Python `kubernetes` client's urllib3 pool manager doesn't respect `NO_PROXY` for local addresses.
+**Cause**: The Python `kubernetes` client's urllib3 pool manager doesn't respect `NO_PROXY` for local addresses. The workaround (unsetting `HTTPS_PROXY`/`HTTP_PROXY`) also blocks direct connections to huggingface.co.
 
-**Fix**: Unset `HTTPS_PROXY` and `HTTP_PROXY` when running K8s-related tests. The `run-functional-tests` alias does this automatically.
+**Fix**: `sandbox-init.sh` pre-downloads ML models while the proxy is active, then sets `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` so tests use cached models. The `run-functional-tests` alias unsets proxy vars automatically.
 
 ## File reference
 
 | File | Purpose |
 |------|---------|
 | `Dockerfile` | Sandbox template build definition |
+| `download-models.py` | Pre-downloads ML models for offline test runs |
 | `setup-ca-bundle.sh` | Creates combined CA bundle for proxy bypass |
 | `start-services.sh` | Launches fake-gcs, Qdrant, and k3s containers |
-| `sandbox-init.sh` | One-shot init: CA fix + deps + services |
+| `sandbox-init.sh` | One-shot init: CA fix + deps + models + services |
 | `proxy-config.json` | Reference network policy (use CLI commands to apply) |

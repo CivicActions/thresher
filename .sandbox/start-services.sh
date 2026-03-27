@@ -10,16 +10,42 @@
 set -euo pipefail
 
 COMPOSE_FILE="${1:-docker-compose.functional.yaml}"
-PROJECT_DIR="${2:-/Users/owen.barton/workspace/thresher}"
+
+# Auto-detect project dir: use argument, or find workspace by locating pyproject.toml.
+_detect_project_dir() {
+    local dir="$PWD"
+    while [[ "$dir" != "/" ]]; do
+        if [[ -f "$dir/pyproject.toml" ]]; then
+            echo "$dir"
+            return
+        fi
+        dir="$(dirname "$dir")"
+    done
+    for candidate in /workspace /home/user/workspace /root/workspace; do
+        if [[ -f "$candidate/pyproject.toml" ]]; then
+            echo "$candidate"
+            return
+        fi
+    done
+    echo "$PWD"
+}
+PROJECT_DIR="${2:-$(_detect_project_dir)}"
 
 echo "=== Starting functional test services ==="
 
 # --- Docker Compose services (fake-gcs, qdrant) ---
-if [ -f "$PROJECT_DIR/$COMPOSE_FILE" ]; then
-    echo "Starting compose services from $COMPOSE_FILE..."
-    docker compose -f "$PROJECT_DIR/$COMPOSE_FILE" up -d
+# Resolve compose file path: use as-is if absolute, otherwise join with PROJECT_DIR.
+if [[ "$COMPOSE_FILE" = /* ]]; then
+    COMPOSE_PATH="$COMPOSE_FILE"
 else
-    echo "WARNING: $COMPOSE_FILE not found, starting services manually..."
+    COMPOSE_PATH="$PROJECT_DIR/$COMPOSE_FILE"
+fi
+
+if [ -f "$COMPOSE_PATH" ]; then
+    echo "Starting compose services from $COMPOSE_PATH..."
+    docker compose -f "$COMPOSE_PATH" up -d
+else
+    echo "WARNING: $COMPOSE_PATH not found, starting services manually..."
     docker run -d --name thresher-fake-gcs -p 4443:4443 \
         fsouza/fake-gcs-server:latest -scheme http -port 4443 -backend memory 2>/dev/null || true
     docker run -d --name thresher-qdrant -p 6333:6333 -p 6334:6334 \
