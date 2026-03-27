@@ -86,8 +86,8 @@ As an operator, I need the controller to coordinate expansion and processing pha
 
 ### Key Entities
 
-- **Expansion Batch**: A group of archive paths assigned to a single expansion job for parallel processing. Contains archive paths, configuration, and status tracking.
-- **Expansion Job**: A K8s Job (or local process) that downloads, extracts, and uploads members for one or more assigned archives. Reports results via expansion records on GCS.
+- **Expansion Job Assignment**: A 1:1 mapping of archive to expansion job. Each job is responsible for exactly one archive — downloading, extracting, and uploading its members. The controller creates one job per archive (up to `max_expansion_parallelism` concurrent).
+- **Expansion Job**: A K8s Job (or local process) that downloads, extracts, and uploads members for exactly one archive. Reports results via an expansion record on GCS.
 - **Expansion Record** (existing): Per-archive JSON recording archive path, member count, hash, and completion time. Used for idempotency.
 
 ## Success Criteria *(mandatory)*
@@ -99,6 +99,12 @@ As an operator, I need the controller to coordinate expansion and processing pha
 - **SC-003**: All expanded files are included in processing queue batches — zero files lost between expansion and processing phases.
 - **SC-004**: Existing archive expansion behavior (idempotency, depth limits, exclude filters) continues to work identically in both local and K8s modes.
 - **SC-005**: Operator can observe expansion progress (jobs created, archives completed, archives failed) from controller logs.
+
+## Clarifications
+
+### Session 2026-03-27
+
+- Q: Should each expansion job handle one archive or multiple? The spec was inconsistent (edge cases said one-per-job, Key Entities said multiple-per-job). -> A: One archive per job. Each expansion job handles exactly one archive for best failure isolation and simplest resource sizing.
 
 ## Assumptions
 
