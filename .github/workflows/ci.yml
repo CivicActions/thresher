@@ -61,7 +61,18 @@ jobs:
 
       # Start GCS + Qdrant services
       - name: Start Docker Compose services
-        run: docker compose -f docker-compose.functional.yaml up -d --wait
+        run: |
+          docker compose -f docker-compose.functional.yaml up -d
+          # Poll from host until both services are ready (images lack curl/wget/bash)
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4443/storage/v1/b > /dev/null 2>&1 && \
+               curl -sf http://localhost:6333/healthz > /dev/null 2>&1; then
+              echo "Services are ready"
+              break
+            fi
+            echo "Waiting for services... ($i/30)"
+            sleep 2
+          done
 
       # Create kind cluster for K8s orchestrator tests
       - uses: helm/kind-action@v1
