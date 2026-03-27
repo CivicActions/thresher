@@ -93,4 +93,9 @@ Defined in `thresher/types.py`: `FileInfo`, `FileTypeGroup`, `ChunkerConfig`, `R
 
 ## Docker Sandbox
 
-Development environment uses [Docker AI Sandbox](https://docs.docker.com/ai/sandboxes/). See `.sandbox/README.md` for setup, including CA bundle fix for proxy bypass and k3s functional test services.
+Development environment uses [Docker AI Sandbox](https://docs.docker.com/ai/sandboxes/). If you are running inside a Docker sandbox (check: `[ -f /usr/local/share/ca-certificates/proxy-ca.crt ]`), read `.sandbox/README.md` for environment setup, known issues, and workarounds. Key points:
+
+- Run `sandbox-init.sh && . /tmp/thresher-env.sh` to initialize (CA bundle, deps, services, env vars)
+- The venv is at `/home/agent/.venv` (overlay fs), **not** `.venv` in the project dir
+- Use `run-unit-tests`, `run-functional-tests`, `run-all-tests` aliases after sourcing the env file
+- Functional tests need `HTTPS_PROXY= HTTP_PROXY=` unset (K8s client bug) and `HF_HUB_OFFLINE=1` (models pre-cached)

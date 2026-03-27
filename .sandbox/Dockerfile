@@ -33,6 +33,13 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # --- uv (latest — base image ships an older version) ---
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# Place the project venv on the overlay filesystem (not the virtiofs-mounted
+# workspace) so uv can hardlink from its cache. Without this, cross-device
+# copies cause nvidia-cusparselt WHEEL tag mismatches and reinstall churn.
+# The workspace .venv (if any) from the host is a different arch and must not
+# be used inside the sandbox.
+ENV UV_PROJECT_ENVIRONMENT=/home/agent/.venv
+
 # --- Helper scripts ---
 COPY --chmod=755 setup-ca-bundle.sh /usr/local/bin/setup-ca-bundle.sh
 COPY --chmod=755 start-services.sh /usr/local/bin/start-services.sh

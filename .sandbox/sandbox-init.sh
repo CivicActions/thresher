@@ -49,14 +49,19 @@ setup-ca-bundle.sh || true
 echo ""
 echo "--- Step 2: Installing project dependencies ---"
 cd "$PROJECT_DIR"
+
+# Ensure venv lives on overlay fs (same as uv cache) — avoids cross-device
+# hardlink failures and nvidia-cusparselt WHEEL tag mismatch churn.
+# Also prevents the sandbox from using a host .venv with the wrong arch.
+export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-/home/agent/.venv}"
+
 if [ -f pyproject.toml ]; then
     uv sync
-    echo "Dependencies installed"
+    echo "Dependencies installed (venv: $UV_PROJECT_ENVIRONMENT)"
     # Workaround: nvidia-cusparselt-cu13 wheel declares Tag: py3-none-manylinux2014_sbsa
     # but ARM64 systems only support aarch64 tags. This nvidia packaging bug causes uv to
     # detect a platform mismatch and reinstall the package on every invocation.
-    # Patch the WHEEL tag to match the actual platform.
-    CUSPARSELT_WHEEL=".venv/lib/python3.13/site-packages/nvidia_cusparselt_cu13-0.8.0.dist-info/WHEEL"
+    CUSPARSELT_WHEEL="$UV_PROJECT_ENVIRONMENT/lib/python3.13/site-packages/nvidia_cusparselt_cu13-0.8.0.dist-info/WHEEL"
     if [ -f "$CUSPARSELT_WHEEL" ] && grep -q manylinux2014_sbsa "$CUSPARSELT_WHEEL"; then
         sed -i 's/manylinux2014_sbsa/manylinux2014_aarch64/' "$CUSPARSELT_WHEEL"
         echo "Patched nvidia-cusparselt WHEEL tag (sbsa→aarch64)"
@@ -123,6 +128,10 @@ echo ""
 echo "--- Step 5: Writing environment exports ---"
 cat > /tmp/thresher-env.sh << 'ENVEOF'
 # Source this file: . /tmp/thresher-env.sh
+
+# Venv on overlay fs — avoids cross-device hardlink failures and arch mismatch
+# with any host .venv mounted via virtiofs.
+export UV_PROJECT_ENVIRONMENT=/home/agent/.venv
 
 # CA bundle (proxy bypass fix)
 if [ -f /tmp/combined-ca-bundle.pem ]; then

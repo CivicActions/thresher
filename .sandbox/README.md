@@ -114,13 +114,13 @@ HTTPS_PROXY= HTTP_PROXY= \
 
 **Symptom**: `uv run` outputs "Uninstalled 1 package / Installed 1 package" (nvidia-cusparselt-cu13) on every invocation, adding ~500ms overhead.
 
-**Cause**: nvidia's aarch64 wheel declares `Tag: py3-none-manylinux2014_sbsa` but ARM64 systems only support `aarch64` tags. uv detects the mismatch and reinstalls every time.
+**Cause**: nvidia's aarch64 wheel declares `Tag: py3-none-manylinux2014_sbsa` but ARM64 systems only support `aarch64` tags. uv detects the mismatch and reinstalls every time. Worse if the venv is on a different filesystem (virtiofs) from the uv cache (overlay).
 
-**Fix**: `sandbox-init.sh` auto-patches the WHEEL tag after `uv sync`. To patch manually:
+**Fix**: The Dockerfile sets `UV_PROJECT_ENVIRONMENT=/home/agent/.venv` to keep the venv on overlay (same fs as uv cache), and `sandbox-init.sh` auto-patches the WHEEL tag after `uv sync`. To patch manually:
 
 ```bash
 sed -i 's/manylinux2014_sbsa/manylinux2014_aarch64/' \
-  .venv/lib/python3.13/site-packages/nvidia_cusparselt_cu13-0.8.0.dist-info/WHEEL
+  /home/agent/.venv/lib/python3.13/site-packages/nvidia_cusparselt_cu13-0.8.0.dist-info/WHEEL
 ```
 
 ### K8s Python client ignores NO_PROXY
