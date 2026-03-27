@@ -327,9 +327,17 @@ def clean_k8s_jobs(k8s_api):
             k8s_api.delete_namespaced_job(
                 name=job.metadata.name,
                 namespace="default",
-                body={"propagationPolicy": "Background"},
+                body={"propagationPolicy": "Foreground"},
             )
+        # Wait until jobs are actually gone
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            remaining = k8s_api.list_namespaced_job(
+                namespace="default", label_selector="app=thresher"
+            )
+            if not remaining.items:
+                break
+            time.sleep(0.5)
     except Exception:
         pass
-    time.sleep(1)
     return k8s_api
