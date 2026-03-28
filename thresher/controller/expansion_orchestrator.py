@@ -187,13 +187,15 @@ class ExpansionOrchestrator:
         while remaining:
             elapsed = time.monotonic() - start
             if elapsed > self._timeout:
-                for path in [fi.path for fi in remaining.values()]:
-                    failed += 1
-                    failed_archives.append(path)
+                still_running = [fi.path for fi in remaining.values()]
+                not_started = [fi.path for fi in pending_archives]
                 logger.error(
-                    "Expansion timeout after %.0fs: %d jobs still running",
+                    "Expansion timeout after %.0fs: %d jobs still running, "
+                    "%d archives never started. In-flight jobs will continue "
+                    "in K8s and be picked up on re-run.",
                     elapsed,
-                    len(remaining),
+                    len(still_running),
+                    len(not_started),
                 )
                 break
 
