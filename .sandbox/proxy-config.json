@@ -1,0 +1,28 @@
+{
+  "mode": "allow",
+  "blockCIDRs": [
+    "10.0.0.0/8",
+    "169.254.0.0/16",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "::1/128",
+    "fc00::/7",
+    "fe80::/10"
+  ],
+  "allowHosts": [
+    "*.anthropic.com",
+    "platform.claude.com:443",
+    "localhost:4443",
+    "localhost:6333",
+    "localhost:6334",
+    "localhost:6443"
+  ],
+  "bypassHosts": [
+    "huggingface.co",
+    "*.huggingface.co",
+    "*.hf.co",
+    "registry-1.docker.io",
+    "*.docker.io",
+    "production.cloudflare.docker.com"
+  ]
+}

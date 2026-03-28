@@ -14,6 +14,7 @@ import tempfile
 import time
 import zipfile
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path, PurePosixPath
 from typing import IO, Any, Iterator
 
@@ -119,6 +120,7 @@ class ArchiveExpander:
         expanded_prefix: str = "expanded/",
         max_depth: int = 2,
         exclude_extensions: list[str] | None = None,
+        upload_batch_size: int = 1,
     ) -> None:
         self._source = source
         self._expanded_prefix = expanded_prefix
@@ -128,6 +130,7 @@ class ArchiveExpander:
             if exclude_extensions is not None
             else self._DEFAULT_EXCLUDE
         )
+        self._upload_batch_size = max(1, upload_batch_size)
 
     # ------------------------------------------------------------------
     # Public API
@@ -186,27 +189,26 @@ class ArchiveExpander:
             members = self._extract_archive(local_archive, tmp_path / "extracted")
             member_count = 0
 
+            # Separate files to upload from nested archives
+            upload_batch: list[tuple[str, Path]] = []
+            nested_archives: list[tuple[Path, str]] = []
+
             for member_name, member_local_path in members:
                 if _should_skip_member(member_name, self._exclude_extensions):
                     continue
 
                 remote_path = f"{expansion_folder}/{member_name}"
-                self._source.upload_from_path(remote_path, member_local_path)
                 member_count += 1
 
                 if (
                     is_archive(member_name, exclude_extensions=self._exclude_extensions)
                     and depth + 1 < self._max_depth
                 ):
-                    nested = self._expand_local_archive(
-                        member_local_path,
-                        member_name,
-                        expansion_folder,
-                        archive_path,
-                        depth + 1,
-                    )
-                    results.extend(nested)
+                    # Upload nested archives too, then expand them
+                    upload_batch.append((remote_path, member_local_path))
+                    nested_archives.append((member_local_path, member_name))
                 else:
+                    upload_batch.append((remote_path, member_local_path))
                     results.append(
                         {
                             "path": remote_path,
@@ -214,6 +216,21 @@ class ArchiveExpander:
                             "archive_path": archive_path,
                         }
                     )
+
+            # Batch upload all files concurrently
+            if upload_batch:
+                self._upload_batch(upload_batch)
+
+            # Process nested archives after upload
+            for member_local_path, member_name in nested_archives:
+                nested = self._expand_local_archive(
+                    member_local_path,
+                    member_name,
+                    expansion_folder,
+                    archive_path,
+                    depth + 1,
+                )
+                results.extend(nested)
 
             self._save_expansion_record(
                 ExpansionRecord(
@@ -253,23 +270,23 @@ class ArchiveExpander:
 
         members = self._extract_archive(local_path, extract_dir)
         results: list[dict] = []
+        upload_batch: list[tuple[str, Path]] = []
+        nested_list: list[tuple[Path, str]] = []
 
-        for name, path in members:
+        for name, fpath in members:
             if _should_skip_member(name, self._exclude_extensions):
                 continue
 
             remote_path = f"{expansion_folder}/{name}"
-            self._source.upload_from_path(remote_path, path)
 
             if (
                 is_archive(name, exclude_extensions=self._exclude_extensions)
                 and depth + 1 < self._max_depth
             ):
-                nested = self._expand_local_archive(
-                    path, name, expansion_folder, original_archive, depth + 1
-                )
-                results.extend(nested)
+                upload_batch.append((remote_path, fpath))
+                nested_list.append((fpath, name))
             else:
+                upload_batch.append((remote_path, fpath))
                 results.append(
                     {
                         "path": remote_path,
@@ -278,7 +295,68 @@ class ArchiveExpander:
                     }
                 )
 
+        if upload_batch:
+            self._upload_batch(upload_batch)
+
+        for fpath, name in nested_list:
+            nested = self._expand_local_archive(
+                fpath, name, expansion_folder, original_archive, depth + 1
+            )
+            results.extend(nested)
+
         return results
+
+    def _upload_batch(self, files: list[tuple[str, Path]]) -> None:
+        """Upload files concurrently using a thread pool with retry."""
+        if not files:
+            return
+
+        max_retries = 3
+        base_delay = 1.0
+
+        def _upload_one(remote_path: str, local_path: Path) -> tuple[str, str | None]:
+            """Upload a single file with retry. Returns (path, error_or_None)."""
+            for attempt in range(max_retries):
+                try:
+                    self._source.upload_from_path(remote_path, local_path)
+                    return remote_path, None
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2**attempt)
+                        logger.debug(
+                            "Upload retry %d/%d for %s: %s (delay %.1fs)",
+                            attempt + 1,
+                            max_retries,
+                            remote_path,
+                            e,
+                            delay,
+                        )
+                        time.sleep(delay)
+                    else:
+                        return remote_path, str(e)
+            return remote_path, "max retries exceeded"
+
+        if self._upload_batch_size <= 1:
+            # Sequential fallback
+            errors: list[str] = []
+            for remote_path, local_path in files:
+                _, err = _upload_one(remote_path, local_path)
+                if err:
+                    errors.append(f"{remote_path}: {err}")
+            if errors:
+                raise RuntimeError(f"Upload failures: {'; '.join(errors)}")
+            return
+
+        errors = []
+        with ThreadPoolExecutor(max_workers=self._upload_batch_size) as pool:
+            futures = {pool.submit(_upload_one, rp, lp): rp for rp, lp in files}
+            for future in as_completed(futures):
+                path, err = future.result()
+                if err:
+                    errors.append(f"{path}: {err}")
+
+        if errors:
+            raise RuntimeError(f"Upload failures: {'; '.join(errors)}")
 
     # ------------------------------------------------------------------
     # Archive format extraction

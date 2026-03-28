@@ -191,6 +191,117 @@ class K8sOrchestrator:
 
         return pod_spec
 
+    def build_expansion_job_specs(self, archive_paths: list[str]) -> list[dict[str, Any]]:
+        """Build K8s Job specs for archive expansion (one per archive)."""
+        image = self.detect_image()
+        namespace = self.detect_namespace()
+        specs: list[dict[str, Any]] = []
+
+        for archive_path in archive_paths:
+            stem = archive_path.rsplit("/", 1)[-1].split(".")[0]
+            job_name = f"thresher-expander-{stem}"
+
+            args = ["expander", "--archive-path", archive_path]
+            if self.k8s.config_configmap:
+                args = ["-c", "/config/config.yaml"] + args
+
+            container: dict[str, Any] = {
+                "name": "expander",
+                "image": image,
+                "imagePullPolicy": self.k8s.image_pull_policy,
+                "args": args,
+                "resources": {
+                    "requests": {},
+                    "limits": {},
+                },
+                "env": [],
+                "volumeMounts": [],
+            }
+
+            if self.k8s.runner_resources.requests.cpu:
+                container["resources"]["requests"]["cpu"] = self.k8s.runner_resources.requests.cpu
+            if self.k8s.runner_resources.requests.memory:
+                container["resources"]["requests"]["memory"] = (
+                    self.k8s.runner_resources.requests.memory
+                )
+            if self.k8s.runner_resources.limits.cpu:
+                container["resources"]["limits"]["cpu"] = self.k8s.runner_resources.limits.cpu
+            if self.k8s.runner_resources.limits.memory:
+                container["resources"]["limits"]["memory"] = self.k8s.runner_resources.limits.memory
+
+            for env_var in ("GCS_BUCKET", "QDRANT_URL", "QDRANT_API_KEY"):
+                val = os.environ.get(env_var)
+                if val:
+                    container["env"].append({"name": env_var, "value": val})
+
+            volumes: list[dict[str, Any]] = []
+            if self.k8s.config_configmap:
+                volumes.append({"name": "config", "configMap": {"name": self.k8s.config_configmap}})
+                container["volumeMounts"].append(
+                    {"name": "config", "mountPath": "/config", "readOnly": True}
+                )
+            if self.k8s.credentials_secret:
+                volumes.append(
+                    {
+                        "name": "gcs-credentials",
+                        "secret": {"secretName": self.k8s.credentials_secret},
+                    }
+                )
+                container["volumeMounts"].append(
+                    {"name": "gcs-credentials", "mountPath": "/secrets/gcs", "readOnly": True}
+                )
+                container["env"].append(
+                    {"name": "GOOGLE_APPLICATION_CREDENTIALS", "value": "/secrets/gcs/key.json"}
+                )
+
+            if not container["volumeMounts"]:
+                del container["volumeMounts"]
+            if not container["env"]:
+                del container["env"]
+
+            pod_spec: dict[str, Any] = {
+                "containers": [container],
+                "restartPolicy": "Never",
+            }
+            if volumes:
+                pod_spec["volumes"] = volumes
+            if self.k8s.service_account:
+                pod_spec["serviceAccountName"] = self.k8s.service_account
+            if self.k8s.node_selector:
+                pod_spec["nodeSelector"] = self.k8s.node_selector
+            if self.k8s.tolerations:
+                pod_spec["tolerations"] = self.k8s.tolerations
+
+            spec = {
+                "apiVersion": "batch/v1",
+                "kind": "Job",
+                "metadata": {
+                    "name": job_name,
+                    "namespace": namespace,
+                    "labels": {
+                        "app": "thresher",
+                        "component": "expander",
+                        "archive-path": archive_path[:63],
+                    },
+                },
+                "spec": {
+                    "backoffLimit": 1,
+                    "ttlSecondsAfterFinished": self.k8s.ttl_seconds_after_finished,
+                    "template": {
+                        "metadata": {
+                            "labels": {
+                                "app": "thresher",
+                                "component": "expander",
+                            },
+                        },
+                        "spec": pod_spec,
+                    },
+                },
+            }
+            specs.append(spec)
+
+        return specs
+
     def deploy_jobs(self) -> list[str]:
         """Deploy runner Jobs to K8s cluster. Returns list of created job names."""
         try:

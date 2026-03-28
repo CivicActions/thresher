@@ -263,29 +263,43 @@ def _extract_kubeconfig() -> str | None:
 @pytest.fixture(scope="session")
 def k8s_cluster():
     """Ensure a K8s cluster is available and return the kubeconfig path."""
+    # The Python kubernetes client's urllib3 pool manager routes all HTTPS traffic
+    # through HTTPS_PROXY (including localhost), and proxy servers refuse to forward
+    # to local addresses (e.g. Docker sandbox proxy on host.docker.internal:3128).
+    # Temporarily unset proxy vars so the k8s client connects directly to localhost,
+    # then restore them so later tests (e.g. model downloads) can still use the proxy.
+    _proxy_vars = ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy")
+    _saved_proxy = {v: os.environ.pop(v) for v in _proxy_vars if v in os.environ}
+
     existing = os.environ.get("KUBECONFIG")
     if existing and os.path.isfile(existing) and _wait_for_k8s_api(existing, timeout=5):
         yield existing
+        os.environ.update(_saved_proxy)
         return
 
     try:
         if not _start_k3s():
+            os.environ.update(_saved_proxy)
             pytest.skip("Failed to start k3s container")
             return
     except FileNotFoundError:
+        os.environ.update(_saved_proxy)
         pytest.skip("docker not available")
         return
 
     time.sleep(10)
     kubeconfig = _extract_kubeconfig()
     if kubeconfig is None:
+        os.environ.update(_saved_proxy)
         pytest.skip("Failed to extract kubeconfig from k3s")
         return
     if not _wait_for_k8s_api(kubeconfig, timeout=60):
+        os.environ.update(_saved_proxy)
         pytest.skip("K8s API did not become ready in time")
         return
     os.environ["KUBECONFIG"] = kubeconfig
     yield kubeconfig
+    os.environ.update(_saved_proxy)
 
 
 def _k8s_config_local(kubeconfig: str):
@@ -297,6 +311,8 @@ def _k8s_config_local(kubeconfig: str):
     cfg = client.Configuration.get_default_copy()
     cfg.verify_ssl = False
     client.Configuration.set_default(cfg)
+    # Suppress urllib3 InsecureRequestWarning for all k8s fixtures.
+    warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 
 @pytest.fixture(scope="session")
@@ -305,7 +321,6 @@ def k8s_api(k8s_cluster):
     from kubernetes import client
 
     _k8s_config_local(k8s_cluster)
-    warnings.filterwarnings("ignore", message="Unverified HTTPS request")
     return client.BatchV1Api()
 
 

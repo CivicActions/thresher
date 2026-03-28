@@ -14,7 +14,7 @@ from thresher.controller.queue_builder import (
     build_queue,
     deserialize_batch,
 )
-from thresher.controller.scanner import scan_files
+from thresher.controller.scanner import scan_direct_files, scan_expanded_files, scan_files
 from thresher.types import (
     ChunkerConfig,
     FileInfo,
@@ -132,6 +132,112 @@ class TestScanFiles:
 
         items = scan_files(mock_source, config)
 
+        assert items == []
+
+
+class TestScanDirectFiles:
+    """Tests for scan_direct_files (archives returned separately)."""
+
+    def test_returns_direct_files_and_archives(self, mock_source, config):
+        """scan_direct_files should separate archives from direct files."""
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(path="data/routine.m", size=1024, updated=datetime.now()),
+                FileInfo(path="data/archive.zip", size=5000, updated=datetime.now()),
+                FileInfo(path="data/report.pdf", size=2048, updated=datetime.now()),
+            ]
+        )
+
+        items, archives = scan_direct_files(mock_source, config)
+
+        assert len(items) == 2
+        assert items[0]["path"] == "data/routine.m"
+        assert items[1]["path"] == "data/report.pdf"
+        assert len(archives) == 1
+        assert archives[0].path == "data/archive.zip"
+
+    def test_no_archives(self, mock_source, config):
+        """No archives should return empty archive list."""
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(path="data/routine.m", size=1024, updated=datetime.now()),
+            ]
+        )
+
+        items, archives = scan_direct_files(mock_source, config)
+
+        assert len(items) == 1
+        assert len(archives) == 0
+
+    def test_only_archives(self, mock_source, config):
+        """Only archives should return empty items list."""
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(path="data/test.zip", size=1024, updated=datetime.now()),
+                FileInfo(path="data/test.tar.gz", size=2048, updated=datetime.now()),
+            ]
+        )
+
+        items, archives = scan_direct_files(mock_source, config)
+
+        assert len(items) == 0
+        assert len(archives) == 2
+
+    def test_empty_source(self, mock_source, config):
+        """Empty source returns empty items and empty archives."""
+        mock_source.list_files.return_value = iter([])
+
+        items, archives = scan_direct_files(mock_source, config)
+
+        assert items == []
+        assert archives == []
+
+
+class TestScanExpandedFiles:
+    """Tests for scan_expanded_files."""
+
+    def test_scans_expanded_prefix(self, mock_source, config):
+        """scan_expanded_files should classify files under expanded prefix."""
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(path="expanded/archive/readme.m", size=512, updated=datetime.now()),
+                FileInfo(
+                    path="expanded/archive/.expansion-record.json",
+                    size=100,
+                    updated=datetime.now(),
+                ),
+                FileInfo(path="expanded/archive/doc.pdf", size=1024, updated=datetime.now()),
+            ]
+        )
+
+        items = scan_expanded_files(mock_source, config)
+
+        assert len(items) == 2
+        paths = [i["path"] for i in items]
+        assert "expanded/archive/readme.m" in paths
+        assert "expanded/archive/doc.pdf" in paths
+        assert all(i["source_type"] == "expanded" for i in items)
+
+    def test_skips_expansion_records(self, mock_source, config):
+        """scan_expanded_files should skip .expansion-record.json files."""
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(
+                    path="expanded/test/.expansion-record.json",
+                    size=100,
+                    updated=datetime.now(),
+                ),
+            ]
+        )
+
+        items = scan_expanded_files(mock_source, config)
+        assert items == []
+
+    def test_empty_expanded_prefix(self, mock_source, config):
+        """No expanded files returns empty list."""
+        mock_source.list_files.return_value = iter([])
+
+        items = scan_expanded_files(mock_source, config)
         assert items == []
 
 

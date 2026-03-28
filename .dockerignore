@@ -1,0 +1,35 @@
+# Git
+.git/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+# Test / dev files
+tests/
+_archive/
+specs/
+docs/
+.sandbox/
+*.md
+!thresher/**/*.md
+
+# Docker
+Dockerfile*
+docker-compose*.yaml
+.dockerignore
+
+# Config
+config.yaml
+*.log
+.env*

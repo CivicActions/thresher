@@ -47,6 +47,11 @@ def main(argv: list[str] | None = None) -> int:
     runner.add_argument("--runner-id", required=True, help="Unique runner identifier")
     runner.add_argument("--force", action="store_true", help="Force reprocess all files")
 
+    # Expander subcommand
+    exp = subparsers.add_parser("expander", help="Expand a single archive")
+    exp.add_argument("--archive-path", required=True, help="GCS path of archive to expand")
+    exp.add_argument("--force", action="store_true", help="Re-expand even if record exists")
+
     args = parser.parse_args(argv)
     setup_logging(level=args.log_level)
 
@@ -56,16 +61,24 @@ def main(argv: list[str] | None = None) -> int:
         return _run_controller(config, args)
     elif args.command == "runner":
         return _run_runner(config, args)
+    elif args.command == "expander":
+        return _run_expander(config, args)
 
     return 1
 
 
 def _run_controller(config, args) -> int:
-    """Execute the controller workflow."""
+    """Execute the controller workflow.
+
+    Two-phase flow: (1) scan direct files + expand archives, (2) build queue from all files.
+    """
+    import logging
+
     from thresher.controller.queue_builder import build_queue
-    from thresher.controller.scanner import scan_files
+    from thresher.controller.scanner import scan_direct_files, scan_expanded_files, scan_summary
     from thresher.runner.processor import create_source_provider
 
+    logger = logging.getLogger("thresher.cli")
     config.force = getattr(args, "force", False)
 
     # Validate mutually exclusive modes
@@ -82,15 +95,31 @@ def _run_controller(config, args) -> int:
 
     source = create_source_provider(config)
 
-    # Scan
-    items = scan_files(source, config)
+    # Phase 1: Scan for direct files and detect archives
+    items, archives = scan_direct_files(source, config)
+
+    # Phase 1b: Expand archives (parallel) if any found
+    if archives:
+        from thresher.controller.expansion_orchestrator import ExpansionOrchestrator
+
+        orch = ExpansionOrchestrator(config, source)
+
+        if getattr(args, "k8s_deploy", False):
+            expansion_result = orch.expand_k8s(archives)
+        else:
+            expansion_result = orch.expand_local(archives)
+
+        if expansion_result.failed_archives:
+            logger.warning("Failed archives: %s", ", ".join(expansion_result.failed_archives))
+
+        # Phase 1c: Scan expanded files
+        expanded_items = scan_expanded_files(source, config)
+        items.extend(expanded_items)
 
     if args.limit is not None and len(items) > args.limit:
         items = items[: args.limit]
 
     if args.dry_run:
-        from thresher.controller.scanner import scan_summary
-
         summary = scan_summary(items)
         print("Dry run summary:")
         print(f"  Total files: {summary['total_files']}")
@@ -103,7 +132,7 @@ def _run_controller(config, args) -> int:
             print(f"    {stype}: {count}")
         return 0
 
-    # Build queue
+    # Phase 2: Build queue from all files (direct + expanded)
     batch_ids = build_queue(
         items,
         source,
@@ -177,6 +206,45 @@ def _run_local(config, source) -> int:
         return 0 if failed == 0 else 1
     finally:
         destination.close()
+
+
+def _run_expander(config, args) -> int:
+    """Expand a single archive (invoked by K8s expansion jobs)."""
+    import logging
+
+    from thresher.controller.archive_expander import ArchiveExpander
+    from thresher.runner.processor import create_source_provider
+
+    logger = logging.getLogger("thresher.cli")
+    source = create_source_provider(config)
+    archive_path = args.archive_path
+
+    expander = ArchiveExpander(
+        source=source,
+        expanded_prefix=config.source.gcs.expanded_prefix,
+        max_depth=config.processing.archive_depth,
+        exclude_extensions=config.processing.archive_exclude_extensions,
+        upload_batch_size=config.processing.upload_batch_size,
+    )
+
+    # Check idempotency (unless --force)
+    if not getattr(args, "force", False):
+        record = expander._load_expansion_record(archive_path)
+        if record is not None:
+            logger.info(
+                "Archive already expanded: %s (%d members) — skipping",
+                archive_path,
+                record.member_count,
+            )
+            return 0
+
+    try:
+        results = expander._expand_single(archive_path, depth=0)
+        logger.info("Expanded %s: %d files", archive_path, len(results))
+        return 0
+    except Exception as e:
+        logger.error("Failed to expand %s: %s", archive_path, e)
+        return 1
 
 
 def _run_runner(config, args) -> int:

@@ -5,32 +5,47 @@
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
 │   Source     │     │    Controller    │     │   Queue     │
-│   (GCS)     │────▶│  scan, classify, │────▶│  (GCS JSON  │
-│             │     │  expand archives,│     │   batches)  │
-└─────────────┘     │  build queue     │     └──────┬──────┘
-                    └──────────────────┘            │
-                                                    ▼
-                    ┌──────────────────┐     ┌─────────────┐
-                    │   Destination    │◀────│   Runners   │
-                    │   (Qdrant)      │     │  claim batch,│
-                    │                 │     │  process each│
-                    └──────────────────┘     │  file:       │
-                                            │   extract    │
-                                            │   chunk      │
-                                            │   embed      │
+│   (GCS)     │────▶│                  │────▶│  (GCS JSON  │
+│             │     │  1. scan direct  │     │   batches)  │
+└─────────────┘     │  2. expand       │     └──────┬──────┘
+                    │     archives     │            │
+                    │  3. scan expanded│            ▼
+                    │  4. build queue  │     ┌─────────────┐
+                    └──────────────────┘     │   Runners   │
+                                            │  claim batch,│
+                    ┌──────────────────┐     │  process each│
+                    │   Destination    │◀────│  file:       │
+                    │   (Qdrant)      │     │   extract    │
+                    │                 │     │   chunk      │
+                    └──────────────────┘     │   embed      │
                                             │   index      │
                                             └─────────────┘
 ```
 
 ## Controller
 
-The controller (`thresher/controller/`) orchestrates the pipeline:
+The controller (`thresher/controller/`) orchestrates the pipeline in four phases:
 
-1. **Scanner** — Lists source files, expands archives recursively, classifies by file type group, filters against the skip list of already-processed files.
-2. **Queue Builder** — Partitions files into batch JSON files written to `queue/pending/` on the source provider. Each batch contains up to `batch_size` items.
-3. **K8s Orchestrator** (optional) — Creates Kubernetes Jobs that run runner pods, or exports manifests for GitOps workflows.
+1. **Scan direct files** — Lists source files, separates regular files from archives (zip, tar, gz, etc.), classifies by file type group, filters against skip list.
+2. **Expand archives** — Expands archives in parallel (locally via `ThreadPoolExecutor` or as K8s Jobs — one per archive). Each archive's contents are uploaded to `expanded/` with concurrent batched uploads. Expansion records provide idempotency — re-runs skip already-expanded archives.
+3. **Scan expanded files** — Lists the `expanded/` prefix to discover files produced by expansion.
+4. **Build queue** — Merges direct and expanded items, partitions into batch JSON files written to `queue/pending/`.
+
+**K8s Orchestrator** (optional) — Creates Kubernetes Jobs for both expansion and runner pods, or exports manifests for GitOps workflows.
 
 The controller can also run an embedded runner (`--local` mode) for single-machine deployments.
+
+## Archive Expansion
+
+The `ExpansionOrchestrator` (`thresher/controller/expansion_orchestrator.py`) expands archives before the main processing phase:
+
+**Local mode** — Archives expand in parallel using `ThreadPoolExecutor` (controlled by `max_expansion_parallelism`). Each archive is extracted, and its member files are uploaded to the `expanded/` prefix with concurrent batched uploads (`upload_batch_size`).
+
+**K8s mode** — Each archive becomes a separate Kubernetes Job running the `thresher expander --archive-path <path>` CLI subcommand. Jobs execute in waves up to `max_expansion_parallelism` at a time.
+
+**Idempotency** — Each successful expansion writes an `.expansion-record.json` file containing the archive path, member count, and timestamp. On re-run, archives with existing records are skipped.
+
+**Failure handling** — A failed archive does not block others. Results aggregate success/failure counts, and failed archive paths are reported for retry or investigation.
 
 ## Runners
 

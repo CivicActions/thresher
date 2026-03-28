@@ -121,3 +121,9 @@ file_type_groups:
     chunker:
       strategy: skip
     priority: 999
+
+# --- Processing defaults ---
+processing:
+  max_expansion_parallelism: 5    # Concurrent expansion jobs/threads
+  upload_batch_size: 50           # Concurrent uploads per expansion job
+  expansion_timeout: 3600         # Max wait time for expansion phase (seconds)

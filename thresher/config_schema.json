@@ -321,6 +321,24 @@
             ".apk",
             ".ipa"
           ]
+        },
+        "max_expansion_parallelism": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum concurrent expansion jobs (K8s) or threads (local).",
+          "default": 5
+        },
+        "upload_batch_size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum concurrent file uploads within each expansion job.",
+          "default": 50
+        },
+        "expansion_timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum seconds to wait for all expansion jobs to complete.",
+          "default": 3600
         }
       }
     },

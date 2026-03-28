@@ -793,3 +793,101 @@ class TestExtensionlessArchiveExpansion:
         results = expander.expand_archives(files)
 
         assert len(results) == 1
+
+
+# ---------------------------------------------------------------------------
+# Concurrent upload tests
+# ---------------------------------------------------------------------------
+
+
+class TestConcurrentUploads:
+    """Tests for batched concurrent upload functionality."""
+
+    def test_batch_upload_with_pool(self, mock_source: MagicMock) -> None:
+        """Verify concurrent upload uses configured batch size."""
+        archive_bytes = _make_zip({f"file{i}.txt": f"data{i}".encode() for i in range(10)})
+        mock_source._storage["data/big.zip"] = archive_bytes
+
+        expander = ArchiveExpander(
+            mock_source,
+            expanded_prefix="expanded/",
+            upload_batch_size=5,
+        )
+        files = [FileInfo(path="data/big.zip", size=len(archive_bytes), updated=datetime.now())]
+        results = expander.expand_archives(files)
+
+        assert len(results) == 10
+        # All files should be uploaded
+        uploaded_paths = [r["path"] for r in results]
+        for i in range(10):
+            assert any(f"file{i}.txt" in p for p in uploaded_paths)
+
+    def test_sequential_fallback_with_batch_size_one(self, mock_source: MagicMock) -> None:
+        """batch_size=1 should use sequential upload (no thread pool)."""
+        archive_bytes = _make_zip({"a.txt": b"aaa", "b.txt": b"bbb"})
+        mock_source._storage["data/test.zip"] = archive_bytes
+
+        expander = ArchiveExpander(
+            mock_source,
+            expanded_prefix="expanded/",
+            upload_batch_size=1,
+        )
+        files = [FileInfo(path="data/test.zip", size=len(archive_bytes), updated=datetime.now())]
+        results = expander.expand_archives(files)
+
+        assert len(results) == 2
+
+    def test_upload_retry_on_failure(self, mock_source: MagicMock) -> None:
+        """Upload should retry on transient failure."""
+        archive_bytes = _make_zip({"file.txt": b"data"})
+        mock_source._storage["data/test.zip"] = archive_bytes
+
+        call_count = [0]
+        original_upload = mock_source.upload_from_path.side_effect
+
+        def flaky_upload(remote_path, local_path):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise ConnectionError("transient failure")
+            return original_upload(remote_path, local_path)
+
+        mock_source.upload_from_path.side_effect = flaky_upload
+
+        expander = ArchiveExpander(
+            mock_source,
+            expanded_prefix="expanded/",
+            upload_batch_size=1,
+        )
+        files = [FileInfo(path="data/test.zip", size=len(archive_bytes), updated=datetime.now())]
+        results = expander.expand_archives(files)
+
+        assert len(results) == 1
+        assert call_count[0] >= 2  # at least one retry
+
+    def test_upload_failure_after_retries_raises(self, mock_source: MagicMock) -> None:
+        """Upload should raise after exhausting retries."""
+        archive_bytes = _make_zip({"file.txt": b"data"})
+        mock_source._storage["data/test.zip"] = archive_bytes
+
+        mock_source.upload_from_path.side_effect = ConnectionError("permanent failure")
+
+        expander = ArchiveExpander(
+            mock_source,
+            expanded_prefix="expanded/",
+            upload_batch_size=1,
+        )
+        files = [FileInfo(path="data/test.zip", size=len(archive_bytes), updated=datetime.now())]
+
+        with pytest.raises(RuntimeError, match="Upload failures"):
+            expander.expand_archives(files)
+
+    def test_default_batch_size_is_sequential(self, mock_source: MagicMock) -> None:
+        """Default batch_size=1 means sequential uploads."""
+        archive_bytes = _make_zip({"file.txt": b"data"})
+        mock_source._storage["data/test.zip"] = archive_bytes
+
+        expander = ArchiveExpander(
+            mock_source,
+            expanded_prefix="expanded/",
+        )
+        assert expander._upload_batch_size == 1

@@ -46,6 +46,9 @@ select = ["E", "F", "I", "W"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    "ignore::urllib3.exceptions.InsecureRequestWarning",
+]
 markers = [
     "integration: marks tests requiring external services (GCS, Qdrant)",
     "contract: marks provider contract tests",

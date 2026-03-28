@@ -73,6 +73,9 @@ class ProcessingConfig:
     archive_exclude_extensions: list[str] = field(
         default_factory=lambda: [".jar", ".war", ".whl", ".egg", ".apk", ".ipa"]
     )
+    max_expansion_parallelism: int = 5
+    upload_batch_size: int = 50
+    expansion_timeout: int = 3600
 
 
 @dataclass
@@ -341,6 +344,15 @@ def _build_config(raw: dict[str, Any]) -> Config:
             ),
             summary_interval=int(
                 proc_raw.get("summary_interval", 100) if isinstance(proc_raw, dict) else 100
+            ),
+            max_expansion_parallelism=int(
+                proc_raw.get("max_expansion_parallelism", 5) if isinstance(proc_raw, dict) else 5
+            ),
+            upload_batch_size=int(
+                proc_raw.get("upload_batch_size", 50) if isinstance(proc_raw, dict) else 50
+            ),
+            expansion_timeout=int(
+                proc_raw.get("expansion_timeout", 3600) if isinstance(proc_raw, dict) else 3600
             ),
         ),
         embedding=EmbeddingConfig(
