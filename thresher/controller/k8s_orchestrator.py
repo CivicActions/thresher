@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,30 @@ import yaml
 from thresher.config import Config
 
 logger = logging.getLogger("thresher.controller.k8s_orchestrator")
+
+# K8s name limit (RFC 1123 subdomain): max 63 chars, [a-z0-9] at start/end,
+# only lowercase alphanumeric and '-' in between.
+_MAX_K8S_NAME_LEN = 63
+# K8s label value limit: max 63 chars, [a-zA-Z0-9] at start/end,
+# only alphanumeric, '-', '_', '.' in between.
+_MAX_K8S_LABEL_LEN = 63
+
+
+def _sanitize_k8s_name(raw: str) -> str:
+    """Sanitize a string into a valid RFC 1123 subdomain name for K8s."""
+    name = raw.lower()
+    name = re.sub(r"[^a-z0-9-]", "-", name)
+    name = re.sub(r"-{2,}", "-", name)
+    name = name.strip("-")
+    return name[:_MAX_K8S_NAME_LEN].rstrip("-")
+
+
+def _sanitize_k8s_label(raw: str) -> str:
+    """Sanitize a string into a valid K8s label value."""
+    label = re.sub(r"[^A-Za-z0-9._-]", "_", raw)
+    label = label.strip("_.-")
+    label = label[:_MAX_K8S_LABEL_LEN]
+    return label.rstrip("_.-")
 
 
 class K8sOrchestrator:
@@ -199,7 +224,7 @@ class K8sOrchestrator:
 
         for archive_path in archive_paths:
             stem = archive_path.rsplit("/", 1)[-1].split(".")[0]
-            job_name = f"thresher-expander-{stem}"
+            job_name = _sanitize_k8s_name(f"thresher-expander-{stem}")
 
             args = ["expander", "--archive-path", archive_path]
             if self.k8s.config_configmap:
@@ -281,7 +306,7 @@ class K8sOrchestrator:
                     "labels": {
                         "app": "thresher",
                         "component": "expander",
-                        "archive-path": archive_path[:63],
+                        "archive-path": _sanitize_k8s_label(archive_path),
                     },
                 },
                 "spec": {

@@ -8,7 +8,11 @@ import yaml
 
 from thresher.cli import main
 from thresher.config import Config, K8sConfig, K8sResources, K8sResourceSpec
-from thresher.controller.k8s_orchestrator import K8sOrchestrator
+from thresher.controller.k8s_orchestrator import (
+    K8sOrchestrator,
+    _sanitize_k8s_label,
+    _sanitize_k8s_name,
+)
 
 
 def _make_config(**k8s_overrides) -> Config:
@@ -595,3 +599,75 @@ class TestBuildExpansionJobSpecs:
 
         container = specs[0]["spec"]["template"]["spec"]["containers"][0]
         assert container["name"] == "expander"
+
+    def test_job_name_underscores_replaced_with_hyphens(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(image="test:v1", namespace="ns")
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(["source/bulk_import_sample_bad.zip"])
+
+        name = specs[0]["metadata"]["name"]
+        assert name == "thresher-expander-bulk-import-sample-bad"
+        assert "_" not in name
+
+    def test_label_value_slashes_replaced(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(image="test:v1", namespace="ns")
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(
+            ["source/WorldVistA/health-data-standards/test/fixtures/bulk_import.zip"]
+        )
+
+        label = specs[0]["metadata"]["labels"]["archive-path"]
+        assert "/" not in label
+
+
+class TestSanitizeK8sName:
+    """Tests for _sanitize_k8s_name helper."""
+
+    def test_replaces_underscores(self):
+        assert _sanitize_k8s_name("thresher-expander-my_archive") == "thresher-expander-my-archive"
+
+    def test_lowercases(self):
+        assert _sanitize_k8s_name("My-Job") == "my-job"
+
+    def test_collapses_consecutive_hyphens(self):
+        assert _sanitize_k8s_name("a__b") == "a-b"
+
+    def test_strips_leading_trailing_hyphens(self):
+        assert _sanitize_k8s_name("-abc-") == "abc"
+
+    def test_truncates_to_63_chars(self):
+        result = _sanitize_k8s_name("a" * 100)
+        assert len(result) <= 63
+
+    def test_no_trailing_hyphen_after_truncation(self):
+        # 62 a's + hyphen + more → truncation at 63 should strip trailing hyphen
+        result = _sanitize_k8s_name("a" * 62 + "-bbb")
+        assert not result.endswith("-")
+
+
+class TestSanitizeK8sLabel:
+    """Tests for _sanitize_k8s_label helper."""
+
+    def test_replaces_slashes(self):
+        assert "/" not in _sanitize_k8s_label("source/path/file.zip")
+
+    def test_preserves_valid_chars(self):
+        assert _sanitize_k8s_label("my-label_v1.0") == "my-label_v1.0"
+
+    def test_strips_leading_trailing_invalid(self):
+        result = _sanitize_k8s_label("_foo_")
+        assert result == "foo"
+
+    def test_truncates_to_63_chars(self):
+        result = _sanitize_k8s_label("a" * 100)
+        assert len(result) <= 63
