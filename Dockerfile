@@ -6,7 +6,9 @@ FROM python:3.13-slim-bookworm
 #  - ffmpeg: audio/video format conversion (docling ASR)
 #  - tesseract-ocr, libtesseract-dev, leptonica: OCR engine (docling)
 #  - build-essential, pkg-config: native extension compilation (tree-sitter, etc)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 \
     libgl1 \
     libglib2.0-0 \
@@ -17,26 +19,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libleptonica-dev \
     pkg-config \
     build-essential \
-    p7zip-full \
-    && rm -rf /var/lib/apt/lists/*
+    p7zip-full
 
 WORKDIR /app
 
-# Install uv for fast dependency management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install uv for fast dependency management (pinned to avoid cache busts)
+COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
 
-# Copy project files and install dependencies (project itself not installed —
-# python -m thresher finds the package via WORKDIR)
-# Uses CPU-only torch for smaller image size
+# Install Python dependencies — changes only when pyproject.toml or uv.lock change.
+# Project itself not installed; python -m thresher finds the package via WORKDIR.
+# Uses CPU-only torch for smaller image size.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --no-dev --frozen --no-install-project --extra-index-url https://download.pytorch.org/whl/cpu
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-dev --frozen --no-install-project --extra-index-url https://download.pytorch.org/whl/cpu
 
-COPY thresher/ thresher/
-
-# Pre-download docling models so they're baked into the image
+# Pre-download docling models so they're baked into the image.
+# Uses venv binary directly so thresher source code isn't needed yet —
+# this keeps the ~250s model download cached across code-only changes.
 ENV HF_HOME=/app/.cache/huggingface
 ENV TORCH_HOME=/app/.cache/torch
-RUN uv run docling-tools models download
+RUN .venv/bin/docling-tools models download
+
+# Copy application code LAST — the most frequently changing layer.
+# Nothing expensive rebuilds after this.
+COPY thresher/ thresher/
 
 # Prevent thread over-subscription in container environments
 ENV OMP_NUM_THREADS=4
