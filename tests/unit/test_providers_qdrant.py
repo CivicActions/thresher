@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from qdrant_client.http.models import (
     Distance,
+    PayloadSchemaType,
     VectorParams,
 )
 
@@ -52,6 +53,11 @@ class TestEnsureCollection:
                     distance=Distance.COSINE,
                 ),
             },
+        )
+        mock_client.create_payload_index.assert_called_once_with(
+            collection_name="docs",
+            field_name="source",
+            field_schema=PayloadSchemaType.KEYWORD,
         )
 
     def test_skips_when_exists(self, mock_qdrant):

@@ -10,6 +10,7 @@ from qdrant_client.http.models import (
     FieldCondition,
     Filter,
     MatchValue,
+    PayloadSchemaType,
     PointStruct,
     VectorParams,
 )
@@ -56,6 +57,15 @@ class QdrantDestinationProvider:
                 ),
             },
         )
+        # Index the 'source' payload field for fast filter-based deletes and lookups.
+        try:
+            self._client.create_payload_index(
+                collection_name=name,
+                field_name="source",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+        except Exception as e:
+            logger.warning("Payload index creation failed for '%s': %s", name, e)
 
     def index_chunks(self, collection: str, chunks: list[IndexChunk]) -> None:
         if not chunks:
