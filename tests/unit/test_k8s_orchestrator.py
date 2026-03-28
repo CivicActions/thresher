@@ -535,7 +535,9 @@ class TestBuildExpansionJobSpecs:
         orch = K8sOrchestrator(config, [])
         specs = orch.build_expansion_job_specs(["source/mydata.zip"])
 
-        assert specs[0]["metadata"]["name"] == "thresher-expander-mydata"
+        name = specs[0]["metadata"]["name"]
+        assert name.startswith("thresher-expander-mydata-")
+        assert len(name) <= 63
 
     def test_expander_labels(self, monkeypatch):
         monkeypatch.delenv("THRESHER_IMAGE", raising=False)
@@ -611,8 +613,27 @@ class TestBuildExpansionJobSpecs:
         specs = orch.build_expansion_job_specs(["source/bulk_import_sample_bad.zip"])
 
         name = specs[0]["metadata"]["name"]
-        assert name == "thresher-expander-bulk-import-sample-bad"
+        assert name.startswith("thresher-expander-bulk-import-sample-bad-")
         assert "_" not in name
+
+    def test_same_stem_different_paths_get_unique_names(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(image="test:v1", namespace="ns")
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(
+            [
+                "source/dir1/bundle-version-2.zip",
+                "source/dir2/bundle-version-2.zip",
+                "source/dir3/bundle-version-2.zip",
+            ]
+        )
+
+        names = [s["metadata"]["name"] for s in specs]
+        assert len(set(names)) == 3, f"Expected 3 unique names, got: {names}"
 
     def test_label_value_slashes_replaced(self, monkeypatch):
         monkeypatch.delenv("THRESHER_IMAGE", raising=False)

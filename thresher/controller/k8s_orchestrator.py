@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -224,7 +225,8 @@ class K8sOrchestrator:
 
         for archive_path in archive_paths:
             stem = archive_path.rsplit("/", 1)[-1].split(".")[0]
-            job_name = _sanitize_k8s_name(f"thresher-expander-{stem}")
+            path_hash = hashlib.sha256(archive_path.encode()).hexdigest()[:8]
+            job_name = _sanitize_k8s_name(f"thresher-expander-{stem}-{path_hash}")
 
             args = ["expander", "--archive-path", archive_path]
             if self.k8s.config_configmap:
