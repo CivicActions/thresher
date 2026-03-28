@@ -179,3 +179,17 @@ class TestPathMatches:
 
     def test_regex_no_match(self):
         assert _path_matches("docs/readme.txt", r"\.md$") is False
+
+    def test_regex_case_insensitive_by_default(self):
+        assert _path_matches("source/IHS.gov/doc.pdf", r"^source/ihs\.gov") is True
+
+    def test_inline_flag_stripped_and_works(self):
+        """Patterns with (?i) inline flags work on Python 3.13+."""
+        assert _path_matches("source/IHS.gov/file.txt", r"^(?i).*ihs\.gov") is True
+
+    def test_inline_flag_mid_pattern(self):
+        """(?i) anywhere in pattern is stripped, re.IGNORECASE used instead."""
+        assert _path_matches("source/RPMS/data.csv", r"^(?i).*rpms") is True
+
+    def test_substring_case_insensitive(self):
+        assert _path_matches("source/IHS.gov/file.txt", "ihs.gov") is True

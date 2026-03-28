@@ -77,7 +77,14 @@ class Router:
 
 
 def _path_matches(file_path: str, pattern: str) -> bool:
-    """Match a path against a pattern (substring or regex)."""
+    """Match a path against a pattern (substring or regex).
+
+    Regex patterns (starting with ``^`` or ending with ``$``) are matched
+    case-insensitively.  Any inline ``(?i)`` flag is stripped before
+    compilation so the pattern is valid on Python 3.13+ where global flags
+    must appear at the very start of the expression.
+    """
     if pattern.startswith("^") or pattern.endswith("$"):
-        return bool(re.search(pattern, file_path))
-    return pattern in file_path
+        clean = re.sub(r"\(\?[aiLmsux]+\)", "", pattern)
+        return bool(re.search(clean, file_path, re.IGNORECASE))
+    return pattern.lower() in file_path.lower()
