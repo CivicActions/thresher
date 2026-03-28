@@ -9,6 +9,8 @@ import json
 import logging
 import lzma
 import os
+import shutil
+import subprocess
 import tarfile
 import tempfile
 import time
@@ -407,6 +409,17 @@ class ArchiveExpander:
 
     @staticmethod
     def _extract_zip(local_path: Path, dest_dir: Path) -> list[tuple[str, Path]]:
+        try:
+            return ArchiveExpander._extract_zip_python(local_path, dest_dir)
+        except NotImplementedError:
+            logger.info(
+                "Python zipfile unsupported compression for %s, falling back to 7z",
+                local_path.name,
+            )
+            return ArchiveExpander._extract_zip_7z(local_path, dest_dir)
+
+    @staticmethod
+    def _extract_zip_python(local_path: Path, dest_dir: Path) -> list[tuple[str, Path]]:
         members: list[tuple[str, Path]] = []
         with zipfile.ZipFile(local_path, "r") as zf:
             for info in zf.infolist():
@@ -420,6 +433,31 @@ class ArchiveExpander:
                 with zf.open(info) as src, open(extracted, "wb") as dst:
                     dst.write(src.read())
                 members.append((name, extracted))
+        return members
+
+    @staticmethod
+    def _extract_zip_7z(local_path: Path, dest_dir: Path) -> list[tuple[str, Path]]:
+        """Fallback zip extraction using 7z for unsupported compression methods."""
+        if not shutil.which("7z"):
+            raise RuntimeError(
+                f"Cannot extract {local_path.name}: unsupported compression and 7z not installed"
+            )
+        result = subprocess.run(
+            ["7z", "x", str(local_path), f"-o{dest_dir}", "-y"],
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"7z extraction failed for {local_path.name}: {result.stderr[:500]}")
+        members: list[tuple[str, Path]] = []
+        for fpath in sorted(dest_dir.rglob("*")):
+            if not fpath.is_file():
+                continue
+            name = str(fpath.relative_to(dest_dir))
+            if name.startswith("/") or ".." in name.split("/"):
+                continue
+            members.append((name, fpath))
         return members
 
     @staticmethod

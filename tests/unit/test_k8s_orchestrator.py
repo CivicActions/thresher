@@ -26,6 +26,10 @@ def _make_config(**k8s_overrides) -> Config:
             requests=K8sResourceSpec(cpu="500m", memory="2Gi"),
             limits=K8sResourceSpec(cpu="2", memory="4Gi"),
         ),
+        "expander_resources": K8sResources(
+            requests=K8sResourceSpec(cpu="250m", memory="512Mi"),
+            limits=K8sResourceSpec(cpu="1", memory="8Gi"),
+        ),
         "max_parallelism": 10,
         "node_selector": {},
         "tolerations": [],
@@ -634,6 +638,33 @@ class TestBuildExpansionJobSpecs:
 
         names = [s["metadata"]["name"] for s in specs]
         assert len(set(names)) == 3, f"Expected 3 unique names, got: {names}"
+
+    def test_expander_uses_expander_resources(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(
+            image="test:v1",
+            namespace="ns",
+            runner_resources=K8sResources(
+                requests=K8sResourceSpec(cpu="2", memory="8Gi"),
+                limits=K8sResourceSpec(cpu="4", memory="16Gi"),
+            ),
+            expander_resources=K8sResources(
+                requests=K8sResourceSpec(cpu="250m", memory="512Mi"),
+                limits=K8sResourceSpec(cpu="1", memory="8Gi"),
+            ),
+        )
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(["source/test.zip"])
+
+        resources = specs[0]["spec"]["template"]["spec"]["containers"][0]["resources"]
+        assert resources["requests"]["cpu"] == "250m"
+        assert resources["requests"]["memory"] == "512Mi"
+        assert resources["limits"]["cpu"] == "1"
+        assert resources["limits"]["memory"] == "8Gi"
 
     def test_label_value_slashes_replaced(self, monkeypatch):
         monkeypatch.delenv("THRESHER_IMAGE", raising=False)

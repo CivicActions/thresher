@@ -98,6 +98,8 @@ routing:
 #   service_account: ""
 #   image: ""                            # Default: auto-detect from pod
 #   image_pull_policy: "IfNotPresent"
+#   config_configmap: ""                 # ConfigMap name to mount as /config/config.yaml
+#   credentials_secret: ""               # Secret name with GCS key (key.json)
 #   runner_resources:
 #     requests:
 #       cpu: "500m"
@@ -105,6 +107,13 @@ routing:
 #     limits:
 #       cpu: "2"
 #       memory: "4Gi"
+#   expander_resources:                  # Lighter resources for archive expansion jobs
+#     requests:
+#       cpu: "250m"
+#       memory: "512Mi"
+#     limits:
+#       cpu: "1"
+#       memory: "8Gi"
 #   max_parallelism: 10
 #   backoff_limit: 3
 #   ttl_seconds_after_finished: 3600

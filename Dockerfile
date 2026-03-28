@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libleptonica-dev \
     pkg-config \
     build-essential \
+    p7zip-full \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

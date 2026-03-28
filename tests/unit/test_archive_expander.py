@@ -891,3 +891,64 @@ class TestConcurrentUploads:
             expanded_prefix="expanded/",
         )
         assert expander._upload_batch_size == 1
+
+
+# ---------------------------------------------------------------------------
+# 7z fallback tests
+# ---------------------------------------------------------------------------
+
+
+class TestZip7zFallback:
+    """Tests for _extract_zip fallback to 7z on unsupported compression."""
+
+    def test_python_failure_falls_back_to_7z(self, tmp_path: Path) -> None:
+        """When Python zipfile raises NotImplementedError, 7z fallback is tried."""
+        from unittest.mock import patch
+
+        dest_dir = tmp_path / "out"
+        dest_dir.mkdir()
+        archive = tmp_path / "test.zip"
+        # Create a real zip so ZipFile can open it but we'll mock zf.open to fail
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("hello.txt", "data")
+        archive.write_bytes(buf.getvalue())
+
+        # Write expected output for 7z fallback
+        (dest_dir / "hello.txt").write_text("data")
+
+        with (
+            patch.object(
+                ArchiveExpander,
+                "_extract_zip_python",
+                side_effect=NotImplementedError("compression method 9"),
+            ),
+            patch.object(
+                ArchiveExpander,
+                "_extract_zip_7z",
+                return_value=[("hello.txt", dest_dir / "hello.txt")],
+            ) as mock_7z,
+        ):
+            result = ArchiveExpander._extract_zip(archive, dest_dir)
+
+        mock_7z.assert_called_once_with(archive, dest_dir)
+        assert len(result) == 1
+        assert result[0][0] == "hello.txt"
+
+    def test_python_success_skips_7z(self, tmp_path: Path) -> None:
+        """When Python zipfile succeeds, 7z is not called."""
+        from unittest.mock import patch
+
+        dest_dir = tmp_path / "out"
+        dest_dir.mkdir()
+        archive = tmp_path / "test.zip"
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("file.txt", "content")
+        archive.write_bytes(buf.getvalue())
+
+        with patch.object(ArchiveExpander, "_extract_zip_7z") as mock_7z:
+            result = ArchiveExpander._extract_zip(archive, dest_dir)
+
+        mock_7z.assert_not_called()
+        assert len(result) == 1

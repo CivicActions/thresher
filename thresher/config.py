@@ -107,6 +107,12 @@ class K8sConfig:
     image: str = ""
     image_pull_policy: str = "IfNotPresent"
     runner_resources: K8sResources = field(default_factory=K8sResources)
+    expander_resources: K8sResources = field(
+        default_factory=lambda: K8sResources(
+            requests=K8sResourceSpec(cpu="250m", memory="512Mi"),
+            limits=K8sResourceSpec(cpu="1", memory="8Gi"),
+        )
+    )
     max_parallelism: int = 10
     node_selector: dict[str, str] = field(default_factory=dict)
     tolerations: list[dict[str, Any]] = field(default_factory=list)
@@ -286,6 +292,10 @@ def _build_config(raw: dict[str, Any]) -> Config:
     k8s_req = k8s_resources_raw.get("requests", {}) if isinstance(k8s_resources_raw, dict) else {}
     k8s_lim = k8s_resources_raw.get("limits", {}) if isinstance(k8s_resources_raw, dict) else {}
 
+    exp_resources_raw = k8s_raw.get("expander_resources", {}) if isinstance(k8s_raw, dict) else {}
+    exp_req = exp_resources_raw.get("requests", {}) if isinstance(exp_resources_raw, dict) else {}
+    exp_lim = exp_resources_raw.get("limits", {}) if isinstance(exp_resources_raw, dict) else {}
+
     return Config(
         source=SourceConfig(
             provider=source_raw.get("provider", "gcs") if isinstance(source_raw, dict) else "gcs",
@@ -395,6 +405,20 @@ def _build_config(raw: dict[str, Any]) -> Config:
                     cpu=str(k8s_lim.get("cpu", "2") if isinstance(k8s_lim, dict) else "2"),
                     memory=str(
                         k8s_lim.get("memory", "4Gi") if isinstance(k8s_lim, dict) else "4Gi"
+                    ),
+                ),
+            ),
+            expander_resources=K8sResources(
+                requests=K8sResourceSpec(
+                    cpu=str(exp_req.get("cpu", "250m") if isinstance(exp_req, dict) else "250m"),
+                    memory=str(
+                        exp_req.get("memory", "512Mi") if isinstance(exp_req, dict) else "512Mi"
+                    ),
+                ),
+                limits=K8sResourceSpec(
+                    cpu=str(exp_lim.get("cpu", "1") if isinstance(exp_lim, dict) else "1"),
+                    memory=str(
+                        exp_lim.get("memory", "8Gi") if isinstance(exp_lim, dict) else "8Gi"
                     ),
                 ),
             ),

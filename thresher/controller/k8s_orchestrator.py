@@ -245,16 +245,18 @@ class K8sOrchestrator:
                 "volumeMounts": [],
             }
 
-            if self.k8s.runner_resources.requests.cpu:
-                container["resources"]["requests"]["cpu"] = self.k8s.runner_resources.requests.cpu
-            if self.k8s.runner_resources.requests.memory:
+            if self.k8s.expander_resources.requests.cpu:
+                container["resources"]["requests"]["cpu"] = self.k8s.expander_resources.requests.cpu
+            if self.k8s.expander_resources.requests.memory:
                 container["resources"]["requests"]["memory"] = (
-                    self.k8s.runner_resources.requests.memory
+                    self.k8s.expander_resources.requests.memory
                 )
-            if self.k8s.runner_resources.limits.cpu:
-                container["resources"]["limits"]["cpu"] = self.k8s.runner_resources.limits.cpu
-            if self.k8s.runner_resources.limits.memory:
-                container["resources"]["limits"]["memory"] = self.k8s.runner_resources.limits.memory
+            if self.k8s.expander_resources.limits.cpu:
+                container["resources"]["limits"]["cpu"] = self.k8s.expander_resources.limits.cpu
+            if self.k8s.expander_resources.limits.memory:
+                container["resources"]["limits"]["memory"] = (
+                    self.k8s.expander_resources.limits.memory
+                )
 
             for env_var in ("GCS_BUCKET", "QDRANT_URL", "QDRANT_API_KEY"):
                 val = os.environ.get(env_var)

@@ -423,6 +423,37 @@
             }
           }
         },
+        "expander_resources": {
+          "type": "object",
+          "description": "Resource requests/limits for expander Jobs (lighter than runners).",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
         "max_parallelism": {
           "type": "integer",
           "minimum": 1,
@@ -451,6 +482,16 @@
           "type": "integer",
           "minimum": 0,
           "default": 3600
+        },
+        "config_configmap": {
+          "type": "string",
+          "description": "Name of a ConfigMap to mount as /config/config.yaml in runner/expander Jobs.",
+          "default": ""
+        },
+        "credentials_secret": {
+          "type": "string",
+          "description": "Name of a Secret containing GCS service account key (key.json) to mount in Jobs.",
+          "default": ""
         }
       }
     },
