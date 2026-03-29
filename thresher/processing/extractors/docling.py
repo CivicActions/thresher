@@ -87,7 +87,7 @@ def main():
                 },
             )
 
-        result = converter.convert(input_path, max_pages=max_pages)
+        result = converter.convert(input_path, max_num_pages=max_pages)
         doc = result.document
 
         # Export markdown
