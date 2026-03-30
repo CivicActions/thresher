@@ -343,10 +343,23 @@ def _run_mcp_config(config) -> int:
 
     output = {
         "qdrant_url": config.destination.qdrant.url,
-        "qdrant_api_key": config.destination.qdrant.api_key,
+        # API key is surfaced as a named input so it can be injected at runtime
+        # by the MCP client rather than stored in plain text. Use a read-only
+        # Qdrant API key scoped to the collection(s) being searched.
+        "qdrant_api_key": "${input:qdrantApiKey}",
         "default_collection": default_col,
         "read_only": True,
         "collections": collections,
+        "_inputs": [
+            {
+                "id": "qdrantApiKey",
+                "type": "promptString",
+                "description": (
+                    "Qdrant API key (use a read-only key scoped to the search collection)"
+                ),
+                "password": True,
+            }
+        ],
     }
 
     print(json.dumps(output, indent=2))

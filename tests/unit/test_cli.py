@@ -200,6 +200,11 @@ class TestMcpConfigSubcommand:
         assert "collections" in output
         assert output["default_collection"] == "vista"
         assert output["read_only"] is True
+        # API key must not be a literal secret — must be a client input reference
+        assert output["qdrant_api_key"] == "${input:qdrantApiKey}"
+        assert "_inputs" in output
+        assert any(i["id"] == "qdrantApiKey" for i in output["_inputs"])
+        assert output["_inputs"][0].get("password") is True
 
     def test_mcp_config_includes_all_collections(self, capsys, tmp_path):
         """mcp-config enumerates all collections from routing rules + default."""
