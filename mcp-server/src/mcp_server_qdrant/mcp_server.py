@@ -5,6 +5,8 @@ from typing import Annotated, Any
 from fastmcp import Context, FastMCP
 from pydantic import Field
 from qdrant_client import models
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from mcp_server_qdrant.common.filters import make_indexes
 from mcp_server_qdrant.common.func_tools import make_partial_function
@@ -83,7 +85,15 @@ class QdrantMCPServer(FastMCP):
 
         super().__init__(name=name, instructions=instructions, **settings)
 
+        self._setup_health_check()
         self.setup_tools()
+
+    def _setup_health_check(self):
+        """Register a /health endpoint for K8s liveness/readiness probes."""
+
+        @self.custom_route("/health", methods=["GET"])
+        async def health_check(request: Request) -> JSONResponse:
+            return JSONResponse({"status": "healthy", "service": "mcp-server-qdrant"})
 
     def format_entry(self, entry: Entry) -> str:
         """

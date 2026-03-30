@@ -55,10 +55,10 @@ def main(argv: list[str] | None = None) -> int:
     # Status subcommand
     subparsers.add_parser("status", help="Show pipeline queue and indexing status")
 
-    # MCP config subcommand
+    # MCP config subcommand (deprecated)
     subparsers.add_parser(
         "mcp-config",
-        help="Output MCP server configuration JSON derived from pipeline config",
+        help="[DEPRECATED] Use 'mcp-server-qdrant generate-config' instead",
     )
 
     args = parser.parse_args(argv)
@@ -304,9 +304,18 @@ def _run_runner(config, args) -> int:
 def _run_mcp_config(config) -> int:
     """Output MCP server configuration JSON derived from the pipeline config.
 
-    Walks routing rules to enumerate all collections and their assigned embedding
-    models, then outputs a JSON object suitable for configuring the MCP server.
+    .. deprecated::
+        Use ``mcp-server-qdrant generate-config --from-thresher <config.yaml>`` instead.
+        That command supports multiple IDE targets (VS Code, Claude Desktop, Cursor,
+        Claude Code) and both local (stdio) and remote (HTTP) deployment modes.
     """
+    import sys
+
+    print(
+        "WARNING: 'thresher mcp-config' is deprecated. "
+        "Use 'mcp-server-qdrant generate-config --from-thresher <config.yaml>' instead.",
+        file=sys.stderr,
+    )
     import json
 
     embedding = config.embedding
