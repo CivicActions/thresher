@@ -26,7 +26,8 @@ class TestDefaultRouting:
             )
         ]
         router = _make_router(rules)
-        assert router.route("src/main.py", file_type_group="general-source").collection == "vista-source"
+        result = router.route("src/main.py", file_type_group="general-source")
+        assert result.collection == "vista-source"
 
     def test_no_source_rule_uses_default(self):
         router = _make_router()
@@ -138,11 +139,14 @@ class TestAndSemantics:
         ]
         router = _make_router(rules)
         # Both match
-        assert router.route("important/report.pdf", file_type_group="office-documents").collection == "special"
+        result = router.route("important/report.pdf", file_type_group="office-documents")
+        assert result.collection == "special"
         # Only path matches
-        assert router.route("important/main.py", file_type_group="source-code").collection == "default"
+        result2 = router.route("important/main.py", file_type_group="source-code")
+        assert result2.collection == "default"
         # Only group matches
-        assert router.route("other/report.pdf", file_type_group="office-documents").collection == "default"
+        result3 = router.route("other/report.pdf", file_type_group="office-documents")
+        assert result3.collection == "default"
 
     def test_all_three_criteria(self):
         rules = [
@@ -154,8 +158,10 @@ class TestAndSemantics:
             )
         ]
         router = _make_router(rules)
-        assert router.route("public/index.html", file_type_group="web-content").collection == "precise"
-        assert router.route("public/about.html", file_type_group="web-content").collection == "default"
+        result = router.route("public/index.html", file_type_group="web-content")
+        assert result.collection == "precise"
+        result2 = router.route("public/about.html", file_type_group="web-content")
+        assert result2.collection == "default"
 
     def test_empty_rule_never_matches(self):
         """A rule with no criteria should not match anything."""

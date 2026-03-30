@@ -51,7 +51,7 @@ class EmbeddingProviderSettings(BaseSettings):
 class FilterableField(BaseModel):
     name: str = Field(description="The name of the field payload field to filter on")
     description: str = Field(
-        description="A description for the field used in the tool description"
+        description="A description for the field used in the tool description",
     )
     field_type: Literal["keyword", "integer", "float", "boolean"] = Field(
         description="The type of the field"

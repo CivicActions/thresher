@@ -17,8 +17,8 @@
 
 **Purpose**: Add new types and update config schema to support multi-model embedding
 
-- [ ] T001 Add `EmbeddingModelConfig` and `RouteResult` dataclasses to thresher/types.py and extend `RoutingRule` with optional `embedding` field
-- [ ] T002 [P] Update thresher/config_schema.json to add `embedding.models` map, `embedding.default` field, and `embedding` field on routing rule items
+- [X] T001 Add `EmbeddingModelConfig` and `RouteResult` dataclasses to thresher/types.py and extend `RoutingRule` with optional `embedding` field
+- [X] T002 [P] Update thresher/config_schema.json to add `embedding.models` map, `embedding.default` field, and `embedding` field on routing rule items
 
 ---
 
@@ -28,9 +28,9 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Update `EmbeddingConfig` dataclass and `_merge_configs()` in thresher/config.py to parse `embedding.models` map with backward compatibility (flat fields promoted to single `"default"` entry when `models` absent)
-- [ ] T004 Add startup validation in thresher/config.py `validate_config()` to check all `embedding` names in routing rules reference keys in `embedding.models` and `embedding.default` references a valid model
-- [ ] T005 [P] Add unit tests for multi-model config parsing and backward-compatible single-model promotion in tests/unit/test_config.py
+- [X] T003 Update `EmbeddingConfig` dataclass and `_merge_configs()` in thresher/config.py to parse `embedding.models` map with backward compatibility (flat fields promoted to single `"default"` entry when `models` absent)
+- [X] T004 Add startup validation in thresher/config.py `validate_config()` to check all `embedding` names in routing rules reference keys in `embedding.models` and `embedding.default` references a valid model
+- [X] T005 [P] Add unit tests for multi-model config parsing and backward-compatible single-model promotion in tests/unit/test_config.py
 
 **Checkpoint**: Configuration infrastructure ready — user story implementation can now begin
 
@@ -44,13 +44,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T006 [P] [US1] Create `MultiModelEmbedder` class with lazy model loading, model swapping, and `index_prefix` prepending in thresher/embedder.py (keep existing `Embedder` class for backward compat)
-- [ ] T007 [P] [US1] Update `Router.route()` to return `RouteResult(collection, embedding)` instead of `str`, using rule's `embedding` field with fallback to default in thresher/processing/router.py
-- [ ] T008 [US1] Update `FileProcessor.process_file()` to use `RouteResult` from router and pass `model_name` to `MultiModelEmbedder.embed_texts()` in thresher/runner/processor.py (depends on T006, T007)
-- [ ] T009 [US1] Update `FileProcessor.__init__` and `ensure_collection` call to look up `vector_size`/`vector_name` from `MultiModelEmbedder.get_model_config()` in thresher/runner/processor.py (depends on T008)
-- [ ] T010 [US1] Update `RunnerLoop.__init__()` to create `MultiModelEmbedder` from `config.embedding.models` instead of single `Embedder` in thresher/runner/loop.py
-- [ ] T011 [P] [US1] Add `MultiModelEmbedder` unit tests (lazy loading, model swapping, empty texts, unknown model KeyError, preload) in tests/unit/test_embedder.py
-- [ ] T012 [P] [US1] Update existing `Router` tests for `RouteResult` return type and add tests for `embedding` field on rules in tests/unit/test_router.py
+- [X] T006 [P] [US1] Create `MultiModelEmbedder` class with lazy model loading, model swapping, and `index_prefix` prepending in thresher/embedder.py (keep existing `Embedder` class for backward compat)
+- [X] T007 [P] [US1] Update `Router.route()` to return `RouteResult(collection, embedding)` instead of `str`, using rule's `embedding` field with fallback to default in thresher/processing/router.py
+- [X] T008 [US1] Update `FileProcessor.process_file()` to use `RouteResult` from router and pass `model_name` to `MultiModelEmbedder.embed_texts()` in thresher/runner/processor.py (depends on T006, T007)
+- [X] T009 [US1] Update `FileProcessor.__init__` and `ensure_collection` call to look up `vector_size`/`vector_name` from `MultiModelEmbedder.get_model_config()` in thresher/runner/processor.py (depends on T008)
+- [X] T010 [US1] Update `RunnerLoop.__init__()` to create `MultiModelEmbedder` from `config.embedding.models` instead of single `Embedder` in thresher/runner/loop.py
+- [X] T011 [P] [US1] Add `MultiModelEmbedder` unit tests (lazy loading, model swapping, empty texts, unknown model KeyError, preload) in tests/unit/test_embedder.py
+- [X] T012 [P] [US1] Update existing `Router` tests for `RouteResult` return type and add tests for `embedding` field on rules in tests/unit/test_router.py
 
 **Checkpoint**: Pipeline routes files to correct collections with correct embedding models. Standalone testable with `uv run pytest tests/unit/test_embedder.py tests/unit/test_router.py -v`
 
@@ -64,14 +64,14 @@
 
 ### Implementation for User Story 2
 
-- [ ] T013 [P] [US2] Add `CollectionConfig` Pydantic model and extend `QdrantSettings` with `collections` list and `default_collection` field in mcp-server/src/mcp_server_qdrant/settings.py
-- [ ] T014 [P] [US2] Add `index_prefix` and `query_prefix` constructor params to `FastEmbedProvider`, prepend `query_prefix` in `embed_query()` and `index_prefix` in `embed_documents()` in mcp-server/src/mcp_server_qdrant/embeddings/fastembed.py
-- [ ] T015 [US2] Update `create_embedding_provider()` to accept prefix params and add `create_collection_providers()` factory function returning `dict[str, EmbeddingProvider]` in mcp-server/src/mcp_server_qdrant/embeddings/factory.py (depends on T013, T014)
-- [ ] T016 [US2] Update `QdrantConnector.__init__()` to accept `embedding_providers: dict[str, EmbeddingProvider]` and route `store()`/`search()` to per-collection provider in mcp-server/src/mcp_server_qdrant/qdrant.py (depends on T015)
-- [ ] T017 [US2] Update `QdrantMCPServer.__init__()` to create per-collection providers when `collections` config is present, with backward-compat single-provider fallback in mcp-server/src/mcp_server_qdrant/mcp_server.py (depends on T016)
-- [ ] T018 [US2] Add `--config` JSON file argument to MCP server CLI entry point, load settings from JSON when provided in mcp-server/src/mcp_server_qdrant/main.py (depends on T013)
-- [ ] T019 [P] [US2] Add unit tests for `CollectionConfig` validation and multi-collection `QdrantSettings` in mcp-server/tests/test_settings.py
-- [ ] T020 [P] [US2] Add unit tests for per-collection provider routing in `QdrantConnector` in mcp-server/tests/test_multi_collection.py
+- [X] T013 [P] [US2] Add `CollectionConfig` Pydantic model and extend `QdrantSettings` with `collections` list and `default_collection` field in mcp-server/src/mcp_server_qdrant/settings.py
+- [X] T014 [P] [US2] Add `index_prefix` and `query_prefix` constructor params to `FastEmbedProvider`, prepend `query_prefix` in `embed_query()` and `index_prefix` in `embed_documents()` in mcp-server/src/mcp_server_qdrant/embeddings/fastembed.py
+- [X] T015 [US2] Update `create_embedding_provider()` to accept prefix params and add `create_collection_providers()` factory function returning `dict[str, EmbeddingProvider]` in mcp-server/src/mcp_server_qdrant/embeddings/factory.py (depends on T013, T014)
+- [X] T016 [US2] Update `QdrantConnector.__init__()` to accept `embedding_providers: dict[str, EmbeddingProvider]` and route `store()`/`search()` to per-collection provider in mcp-server/src/mcp_server_qdrant/qdrant.py (depends on T015)
+- [X] T017 [US2] Update `QdrantMCPServer.__init__()` to create per-collection providers when `collections` config is present, with backward-compat single-provider fallback in mcp-server/src/mcp_server_qdrant/mcp_server.py (depends on T016)
+- [X] T018 [US2] Add `--config` JSON file argument to MCP server CLI entry point, load settings from JSON when provided in mcp-server/src/mcp_server_qdrant/main.py (depends on T013)
+- [X] T019 [P] [US2] Add unit tests for `CollectionConfig` validation and multi-collection `QdrantSettings` in mcp-server/tests/test_settings.py
+- [X] T020 [P] [US2] Add unit tests for per-collection provider routing in `QdrantConnector` in mcp-server/tests/test_multi_collection.py
 
 **Checkpoint**: MCP server routes queries to correct embedding model per collection. Testable with `cd mcp-server && uv run pytest tests/ -v`
 
@@ -85,8 +85,8 @@
 
 ### Implementation for User Story 5
 
-- [ ] T021 [P] [US5] Add unit tests verifying `index_prefix` prepending in `MultiModelEmbedder.embed_texts()` and empty prefix passthrough in tests/unit/test_embedder.py
-- [ ] T022 [P] [US5] Add unit tests verifying `query_prefix` in `FastEmbedProvider.embed_query()` and `index_prefix` in `embed_documents()` with empty prefix passthrough in mcp-server/tests/test_prefix_handling.py
+- [X] T021 [P] [US5] Add unit tests verifying `index_prefix` prepending in `MultiModelEmbedder.embed_texts()` and empty prefix passthrough in tests/unit/test_embedder.py
+- [X] T022 [P] [US5] Add unit tests verifying `query_prefix` in `FastEmbedProvider.embed_query()` and `index_prefix` in `embed_documents()` with empty prefix passthrough in mcp-server/tests/test_prefix_handling.py
 
 **Checkpoint**: Prefix behavior verified for both pipeline and MCP server paths
 
@@ -100,8 +100,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T023 [US3] Implement `mcp-config` CLI subcommand in thresher/cli.py that walks routing rules to derive collection-to-model mappings and outputs JSON per contracts/interfaces.md
-- [ ] T024 [P] [US3] Add unit tests for `mcp-config` JSON output completeness and env var resolution in tests/unit/test_cli.py
+- [X] T023 [US3] Implement `mcp-config` CLI subcommand in thresher/cli.py that walks routing rules to derive collection-to-model mappings and outputs JSON per contracts/interfaces.md
+- [X] T024 [P] [US3] Add unit tests for `mcp-config` JSON output completeness and env var resolution in tests/unit/test_cli.py
 
 **Checkpoint**: `thresher --config prod-config.yaml mcp-config` outputs valid MCP server configuration JSON
 
@@ -115,7 +115,7 @@
 
 ### Implementation for User Story 4
 
-- [ ] T025 [US4] Add MCP server lint and test job to .github/workflows/ci.yml running ruff, mypy, and pytest in the mcp-server/ subdirectory
+- [X] T025 [US4] Add MCP server lint and test job to .github/workflows/ci.yml running ruff, mypy, and pytest in the mcp-server/ subdirectory
 
 **Checkpoint**: CI runs MCP server tests on PRs affecting `mcp-server/` files
 
@@ -125,9 +125,9 @@
 
 **Purpose**: Production readiness improvements that span multiple user stories
 
-- [ ] T026 [P] Update Dockerfile to pre-download both `nomic-ai/nomic-embed-text-v1.5` and `jinaai/jina-embeddings-v2-base-code` models during build
-- [ ] T027 [P] Update config.example.yaml with multi-model embedding and routing example
-- [ ] T028 Run quickstart.md validation end-to-end
+- [X] T026 [P] Update Dockerfile to pre-download both `nomic-ai/nomic-embed-text-v1.5` and `jinaai/jina-embeddings-v2-base-code` models during build
+- [X] T027 [P] Update config.example.yaml with multi-model embedding and routing example
+- [X] T028 Run quickstart.md validation end-to-end
 
 ---
 

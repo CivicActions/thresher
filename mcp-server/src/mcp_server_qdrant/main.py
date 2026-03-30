@@ -21,7 +21,7 @@ def main():
         "--config",
         type=str,
         default=None,
-        help="Path to a JSON configuration file. Settings in the file override environment variables.",
+        help="Path to a JSON configuration file. Settings override environment variables.",
     )
     args = parser.parse_args()
 
@@ -29,7 +29,6 @@ def main():
     if args.config:
         config_path = Path(args.config)
         if config_path.exists():
-            import os
             config_data = json.loads(config_path.read_text(encoding="utf-8"))
             _apply_json_config(config_data)
 

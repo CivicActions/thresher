@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from thresher.embedder import Embedder
+from thresher.embedder import Embedder, MultiModelEmbedder
+from thresher.types import EmbeddingModelConfig
 
 
 class TestEmbedderInit:
@@ -79,9 +80,6 @@ class TestEmbedTexts:
 # ---------------------------------------------------------------------------
 # MultiModelEmbedder tests (T011, T021)
 # ---------------------------------------------------------------------------
-
-from thresher.embedder import MultiModelEmbedder
-from thresher.types import EmbeddingModelConfig
 
 
 def _make_model_config(**kwargs) -> EmbeddingModelConfig:

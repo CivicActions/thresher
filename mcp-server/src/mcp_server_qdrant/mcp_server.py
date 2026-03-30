@@ -10,7 +10,10 @@ from mcp_server_qdrant.common.filters import make_indexes
 from mcp_server_qdrant.common.func_tools import make_partial_function
 from mcp_server_qdrant.common.wrap_filters import wrap_filters
 from mcp_server_qdrant.embeddings.base import EmbeddingProvider
-from mcp_server_qdrant.embeddings.factory import create_collection_providers, create_embedding_provider
+from mcp_server_qdrant.embeddings.factory import (
+    create_collection_providers,
+    create_embedding_provider,
+)
 from mcp_server_qdrant.qdrant import ArbitraryFilter, Entry, Metadata, QdrantConnector
 from mcp_server_qdrant.settings import (
     EmbeddingProviderSettings,

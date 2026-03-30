@@ -40,6 +40,12 @@ ENV HF_HOME=/app/.cache/huggingface
 ENV TORCH_HOME=/app/.cache/torch
 RUN .venv/bin/docling-tools models download
 
+# Pre-download fastembed embedding models so they're baked into the image.
+# Both models are downloaded here; only one is loaded at runtime per runner.
+RUN .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/all-MiniLM-L6-v2')"
+RUN .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('nomic-ai/nomic-embed-text-v1.5')"
+RUN .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('jinaai/jina-embeddings-v2-base-code')"
+
 # Copy application code LAST — the most frequently changing layer.
 # Nothing expensive rebuilds after this.
 COPY thresher/ thresher/

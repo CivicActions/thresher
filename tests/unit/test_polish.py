@@ -21,10 +21,10 @@ from thresher.controller.queue_builder import queue_summary
 from thresher.controller.scanner import scan_summary
 from thresher.runner.processor import FileProcessor
 from thresher.types import (
-    RouteResult,
     ChunkerConfig,
     FileTypeGroup,
     ProcessingStatus,
+    RouteResult,
 )
 
 # ---------------------------------------------------------------------------

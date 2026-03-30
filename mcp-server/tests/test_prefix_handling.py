@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
+
 
 class TestFastEmbedProviderPrefixes:
     """Tests verifying prefix prepending behavior in FastEmbedProvider."""
@@ -13,6 +13,7 @@ class TestFastEmbedProviderPrefixes:
     @patch("mcp_server_qdrant.embeddings.fastembed.TextEmbedding")
     def test_embed_query_prepends_query_prefix(self, mock_cls):
         import asyncio
+
         from mcp_server_qdrant.embeddings.fastembed import FastEmbedProvider
 
         mock_model = MagicMock()
@@ -28,6 +29,7 @@ class TestFastEmbedProviderPrefixes:
     @patch("mcp_server_qdrant.embeddings.fastembed.TextEmbedding")
     def test_embed_query_no_prefix_passes_unchanged(self, mock_cls):
         import asyncio
+
         from mcp_server_qdrant.embeddings.fastembed import FastEmbedProvider
 
         mock_model = MagicMock()
@@ -42,10 +44,13 @@ class TestFastEmbedProviderPrefixes:
     @patch("mcp_server_qdrant.embeddings.fastembed.TextEmbedding")
     def test_embed_documents_prepends_index_prefix(self, mock_cls):
         import asyncio
+
         from mcp_server_qdrant.embeddings.fastembed import FastEmbedProvider
 
         mock_model = MagicMock()
-        mock_model.passage_embed.return_value = iter([np.array([0.1, 0.2, 0.3]), np.array([0.4, 0.5, 0.6])])
+        mock_model.passage_embed.return_value = iter([
+            np.array([0.1, 0.2, 0.3]), np.array([0.4, 0.5, 0.6])
+        ])
         mock_cls.return_value = mock_model
 
         provider = FastEmbedProvider("nomic/text", index_prefix="search_document: ")
@@ -59,6 +64,7 @@ class TestFastEmbedProviderPrefixes:
     @patch("mcp_server_qdrant.embeddings.fastembed.TextEmbedding")
     def test_embed_documents_no_prefix_passes_unchanged(self, mock_cls):
         import asyncio
+
         from mcp_server_qdrant.embeddings.fastembed import FastEmbedProvider
 
         mock_model = MagicMock()
@@ -74,6 +80,7 @@ class TestFastEmbedProviderPrefixes:
     def test_both_prefixes_independent(self, mock_cls):
         """index_prefix and query_prefix are applied to their respective methods only."""
         import asyncio
+
         from mcp_server_qdrant.embeddings.fastembed import FastEmbedProvider
 
         mock_model = MagicMock()

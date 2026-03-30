@@ -506,7 +506,10 @@ def validate_config(merged: dict) -> list[str]:
     validator = jsonschema.Draft202012Validator(schema)
     schema_errors = sorted(validator.iter_errors(merged), key=lambda e: list(e.absolute_path))
     errors.extend(
-        [f"{'.'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}" for e in schema_errors]
+        [
+            f"{'.'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
+            for e in schema_errors
+        ]
     )
 
     # Semantic validation: embedding model references
@@ -518,7 +521,8 @@ def validate_config(merged: dict) -> list[str]:
             default_name = embed_raw.get("default", "default")
             if default_name not in model_keys:
                 errors.append(
-                    f"embedding.default: '{default_name}' does not reference a key in embedding.models"
+                    f"embedding.default: '{default_name}' does not reference a key in "
+                    "embedding.models"
                 )
             # Check routing rules reference valid embedding model names
             routing_raw = merged.get("routing", {})

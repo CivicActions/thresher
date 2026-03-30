@@ -55,6 +55,12 @@ def main(argv: list[str] | None = None) -> int:
     # Status subcommand
     subparsers.add_parser("status", help="Show pipeline queue and indexing status")
 
+    # MCP config subcommand
+    subparsers.add_parser(
+        "mcp-config",
+        help="Output MCP server configuration JSON derived from pipeline config",
+    )
+
     args = parser.parse_args(argv)
     setup_logging(level=args.log_level)
 
@@ -68,6 +74,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_expander(config, args)
     elif args.command == "status":
         return _run_status(config)
+    elif args.command == "mcp-config":
+        return _run_mcp_config(config)
 
     return 1
 
@@ -291,3 +299,55 @@ def _run_runner(config, args) -> int:
         return 0 if failed == 0 else 1
     finally:
         destination.close()
+
+
+def _run_mcp_config(config) -> int:
+    """Output MCP server configuration JSON derived from the pipeline config.
+
+    Walks routing rules to enumerate all collections and their assigned embedding
+    models, then outputs a JSON object suitable for configuring the MCP server.
+    """
+    import json
+
+
+    embedding = config.embedding
+    default_model_name = embedding.default
+
+    # Enumerate all collections from routing rules + the default collection
+    # collection_name -> model_name (first rule wins for a given collection)
+    collection_models: dict[str, str] = {}
+
+    for rule in config.routing.rules:
+        col = rule.collection
+        if col and col not in collection_models:
+            model_name = rule.embedding or default_model_name
+            collection_models[col] = model_name
+
+    # Add default collection if not already in rules
+    default_col = config.routing.default_collection
+    if default_col and default_col not in collection_models:
+        collection_models[default_col] = default_model_name
+
+    collections = []
+    for col_name, model_name in collection_models.items():
+        model_cfg = embedding.models.get(model_name)
+        if model_cfg is None:
+            continue
+        collections.append({
+            "name": col_name,
+            "model": model_cfg.model,
+            "vector_name": model_cfg.vector_name,
+            "vector_size": model_cfg.vector_size,
+            "query_prefix": model_cfg.query_prefix,
+        })
+
+    output = {
+        "qdrant_url": config.destination.qdrant.url,
+        "qdrant_api_key": config.destination.qdrant.api_key,
+        "default_collection": default_col,
+        "read_only": True,
+        "collections": collections,
+    }
+
+    print(json.dumps(output, indent=2))
+    return 0

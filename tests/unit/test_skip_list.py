@@ -25,11 +25,11 @@ from thresher.controller.scanner import (
     update_skip_list,
 )
 from thresher.types import (
-    RouteResult,
     ChunkerConfig,
     FileInfo,
     FileTypeGroup,
     ProcessingStatus,
+    RouteResult,
 )
 
 # ---------------------------------------------------------------------------

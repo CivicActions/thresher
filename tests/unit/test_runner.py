@@ -24,13 +24,13 @@ from thresher.runner.processor import (
     dispatch_chunker,
 )
 from thresher.types import (
-    RouteResult,
     ChunkerConfig,
     FileInfo,
     FileTypeGroup,
     ProcessingStatus,
     QueueBatch,
     QueueItem,
+    RouteResult,
 )
 
 # ---------------------------------------------------------------------------

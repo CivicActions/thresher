@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import textwrap
+
 import pytest
 
 from thresher.cli import main
@@ -153,3 +156,134 @@ class TestCLIArgParsing:
             ]
         )
         assert result == 0
+
+
+# ---------------------------------------------------------------------------
+# mcp-config subcommand tests (T024)
+# ---------------------------------------------------------------------------
+
+
+class TestMcpConfigSubcommand:
+    """Tests for the `thresher mcp-config` CLI subcommand."""
+
+    def test_mcp_config_outputs_valid_json(self, capsys, tmp_path):
+        """mcp-config outputs valid JSON to stdout."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            textwrap.dedent("""
+                embedding:
+                  default: docs
+                  models:
+                    docs:
+                      model: "nomic-ai/nomic-embed-text-v1.5"
+                      vector_size: 768
+                      vector_name: "nomic-v1.5"
+                      query_prefix: "search_query: "
+                    code:
+                      model: "jinaai/jina-embeddings-v2-base-code"
+                      vector_size: 768
+                      vector_name: "jina-code-v2"
+                routing:
+                  default_collection: vista
+                  rules:
+                    - collection: vista-source
+                      embedding: code
+                    - collection: vista
+            """),
+            encoding="utf-8",
+        )
+        result = main(["--config", str(config_file), "mcp-config"])
+        assert result == 0
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+        assert "qdrant_url" in output
+        assert "collections" in output
+        assert output["default_collection"] == "vista"
+        assert output["read_only"] is True
+
+    def test_mcp_config_includes_all_collections(self, capsys, tmp_path):
+        """mcp-config enumerates all collections from routing rules + default."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            textwrap.dedent("""
+                embedding:
+                  default: docs
+                  models:
+                    docs:
+                      model: "nomic/text"
+                      vector_size: 768
+                      vector_name: "nomic"
+                    code:
+                      model: "jina/code"
+                      vector_size: 768
+                      vector_name: "jina"
+                routing:
+                  default_collection: vista
+                  rules:
+                    - collection: vista-source
+                      embedding: code
+                    - collection: rpms
+                      embedding: docs
+                    - collection: rpms-source
+                      embedding: code
+            """),
+            encoding="utf-8",
+        )
+        result = main(["--config", str(config_file), "mcp-config"])
+        assert result == 0
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+        collection_names = [c["name"] for c in output["collections"]]
+        assert set(collection_names) == {"vista", "vista-source", "rpms", "rpms-source"}
+
+    def test_mcp_config_correct_model_assignment(self, capsys, tmp_path):
+        """Collections are assigned their correct embedding model configs."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            textwrap.dedent("""
+                embedding:
+                  default: docs
+                  models:
+                    docs:
+                      model: "nomic-ai/nomic-embed-text-v1.5"
+                      vector_size: 768
+                      vector_name: "nomic-v1.5"
+                      query_prefix: "search_query: "
+                    code:
+                      model: "jinaai/jina-embeddings-v2-base-code"
+                      vector_size: 768
+                      vector_name: "jina-code-v2"
+                routing:
+                  default_collection: vista
+                  rules:
+                    - collection: vista-source
+                      embedding: code
+            """),
+            encoding="utf-8",
+        )
+        result = main(["--config", str(config_file), "mcp-config"])
+        assert result == 0
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+
+        by_name = {c["name"]: c for c in output["collections"]}
+        assert "vista" in by_name
+        assert by_name["vista"]["model"] == "nomic-ai/nomic-embed-text-v1.5"
+        assert by_name["vista"]["vector_name"] == "nomic-v1.5"
+        assert by_name["vista"]["query_prefix"] == "search_query: "
+
+        assert "vista-source" in by_name
+        assert by_name["vista-source"]["model"] == "jinaai/jina-embeddings-v2-base-code"
+        assert by_name["vista-source"]["vector_name"] == "jina-code-v2"
+        assert by_name["vista-source"]["query_prefix"] == ""
+
+    def test_mcp_config_legacy_single_model(self, capsys):
+        """mcp-config works with legacy single-model config (backward compat)."""
+        result = main(["mcp-config"])
+        assert result == 0
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+        assert "collections" in output
+        # Legacy config has one default model → default collection gets it
+        assert len(output["collections"]) >= 1
+        assert output["collections"][0]["model"] == "sentence-transformers/all-MiniLM-L6-v2"

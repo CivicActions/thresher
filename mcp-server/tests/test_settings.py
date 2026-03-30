@@ -1,10 +1,9 @@
 import pytest
-
 from mcp_server_qdrant.embeddings.types import EmbeddingProviderType
 from mcp_server_qdrant.settings import (
-    CollectionConfig,
     DEFAULT_TOOL_FIND_DESCRIPTION,
     DEFAULT_TOOL_STORE_DESCRIPTION,
+    CollectionConfig,
     EmbeddingProviderSettings,
     QdrantSettings,
     ToolSettings,
@@ -67,7 +66,9 @@ class TestQdrantSettings:
 
 class TestCollectionConfig:
     def test_collection_config_required_fields(self):
-        col = CollectionConfig(name="vista", model="nomic/text", vector_name="nomic-v1.5", vector_size=768)
+        col = CollectionConfig(
+            name="vista", model="nomic/text", vector_name="nomic-v1.5", vector_size=768
+        )
         assert col.name == "vista"
         assert col.model == "nomic/text"
         assert col.vector_name == "nomic-v1.5"
