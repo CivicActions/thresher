@@ -42,15 +42,27 @@ class QdrantConnector:
         embedding_provider: EmbeddingProvider,
         qdrant_local_path: str | None = None,
         field_indexes: dict[str, models.PayloadSchemaType] | None = None,
+        embedding_providers: dict[str, EmbeddingProvider] | None = None,
     ):
         self._qdrant_url = qdrant_url.rstrip("/") if qdrant_url else None
         self._qdrant_api_key = qdrant_api_key
         self._default_collection_name = collection_name
         self._embedding_provider = embedding_provider
+        # Per-collection providers override the single default provider when present
+        self._embedding_providers: dict[str, EmbeddingProvider] = embedding_providers or {}
         self._client = AsyncQdrantClient(
             location=qdrant_url, api_key=qdrant_api_key, path=qdrant_local_path
         )
         self._field_indexes = field_indexes
+
+    def _get_provider(self, collection_name: str | None) -> EmbeddingProvider:
+        """Return the embedding provider for the given collection name.
+
+        Falls back to the default provider when no per-collection override exists.
+        """
+        if collection_name and collection_name in self._embedding_providers:
+            return self._embedding_providers[collection_name]
+        return self._embedding_provider
 
     async def get_collection_names(self) -> list[str]:
         """
@@ -74,10 +86,11 @@ class QdrantConnector:
         # Embed the document
         # ToDo: instead of embedding text explicitly, use `models.Document`,
         # it should unlock usage of server-side inference.
-        embeddings = await self._embedding_provider.embed_documents([entry.content])
+        provider = self._get_provider(collection_name)
+        embeddings = await provider.embed_documents([entry.content])
 
         # Add to Qdrant
-        vector_name = self._embedding_provider.get_vector_name()
+        vector_name = provider.get_vector_name()
         payload = {"document": entry.content, METADATA_PATH: entry.metadata}
         await self._client.upsert(
             collection_name=collection_name,
@@ -117,8 +130,9 @@ class QdrantConnector:
         # ToDo: instead of embedding text explicitly, use `models.Document`,
         # it should unlock usage of server-side inference.
 
-        query_vector = await self._embedding_provider.embed_query(query)
-        vector_name = self._embedding_provider.get_vector_name()
+        provider = self._get_provider(collection_name)
+        query_vector = await provider.embed_query(query)
+        vector_name = provider.get_vector_name()
 
         # Search in Qdrant
         search_results = await self._client.query_points(
@@ -145,10 +159,11 @@ class QdrantConnector:
         collection_exists = await self._client.collection_exists(collection_name)
         if not collection_exists:
             # Create the collection with the appropriate vector size
-            vector_size = self._embedding_provider.get_vector_size()
+            provider = self._get_provider(collection_name)
+            vector_size = provider.get_vector_size()
 
             # Use the vector name as defined in the embedding provider
-            vector_name = self._embedding_provider.get_vector_name()
+            vector_name = provider.get_vector_name()
             await self._client.create_collection(
                 collection_name=collection_name,
                 vectors_config={

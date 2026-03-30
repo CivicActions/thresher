@@ -71,6 +71,17 @@ class FilterableField(BaseModel):
     )
 
 
+
+class CollectionConfig(BaseModel):
+    """Per-collection embedding model configuration for multi-collection MCP server setup."""
+
+    name: str = Field(description="Qdrant collection name")
+    model: str = Field(description="fastembed model identifier")
+    vector_name: str = Field(description="Named vector identifier in Qdrant")
+    vector_size: int = Field(description="Embedding vector dimensionality", ge=1)
+    index_prefix: str = Field(default="", description="Prefix prepended to texts at indexing time")
+    query_prefix: str = Field(default="", description="Prefix prepended to query texts")
+
 class QdrantSettings(BaseSettings):
     """
     Configuration for the Qdrant connector.
@@ -84,6 +95,16 @@ class QdrantSettings(BaseSettings):
     local_path: str | None = Field(default=None, validation_alias="QDRANT_LOCAL_PATH")
     search_limit: int = Field(default=10, validation_alias="QDRANT_SEARCH_LIMIT")
     read_only: bool = Field(default=False, validation_alias="QDRANT_READ_ONLY")
+
+    collections: list[CollectionConfig] = Field(
+        default_factory=list,
+        description="Per-collection embedding model configs for multi-collection mode.",
+    )
+    default_collection: str = Field(
+        default="",
+        validation_alias="DEFAULT_COLLECTION",
+        description="Default collection name when multiple collections are configured.",
+    )
 
     filterable_fields: list[FilterableField] | None = Field(default=None)
 

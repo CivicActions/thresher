@@ -2,6 +2,7 @@ import pytest
 
 from mcp_server_qdrant.embeddings.types import EmbeddingProviderType
 from mcp_server_qdrant.settings import (
+    CollectionConfig,
     DEFAULT_TOOL_FIND_DESCRIPTION,
     DEFAULT_TOOL_STORE_DESCRIPTION,
     EmbeddingProviderSettings,
@@ -62,6 +63,67 @@ class TestQdrantSettings:
         monkeypatch.setenv("QDRANT_API_KEY", "test_api_key")
         with pytest.raises(ValueError):
             QdrantSettings()
+
+
+class TestCollectionConfig:
+    def test_collection_config_required_fields(self):
+        col = CollectionConfig(name="vista", model="nomic/text", vector_name="nomic-v1.5", vector_size=768)
+        assert col.name == "vista"
+        assert col.model == "nomic/text"
+        assert col.vector_name == "nomic-v1.5"
+        assert col.vector_size == 768
+        assert col.index_prefix == ""
+        assert col.query_prefix == ""
+
+    def test_collection_config_with_prefixes(self):
+        col = CollectionConfig(
+            name="docs",
+            model="nomic/text",
+            vector_name="nomic-v1.5",
+            vector_size=768,
+            index_prefix="search_document: ",
+            query_prefix="search_query: ",
+        )
+        assert col.index_prefix == "search_document: "
+        assert col.query_prefix == "search_query: "
+
+    def test_collection_config_vector_size_must_be_positive(self):
+        with pytest.raises(ValueError):
+            CollectionConfig(name="bad", model="m", vector_name="v", vector_size=0)
+
+    def test_qdrant_settings_with_collections(self):
+        settings = QdrantSettings.model_validate({
+            "collections": [
+                {
+                    "name": "vista",
+                    "model": "nomic-ai/nomic-embed-text-v1.5",
+                    "vector_name": "nomic-v1.5",
+                    "vector_size": 768,
+                    "query_prefix": "search_query: ",
+                },
+                {
+                    "name": "vista-source",
+                    "model": "jinaai/jina-embeddings-v2-base-code",
+                    "vector_name": "jina-code-v2",
+                    "vector_size": 768,
+                },
+            ]
+        })
+        assert len(settings.collections) == 2
+        assert settings.collections[0].name == "vista"
+        assert settings.collections[1].name == "vista-source"
+        assert settings.collections[0].query_prefix == "search_query: "
+        assert settings.collections[1].query_prefix == ""
+
+    def test_default_collection_from_env(self, monkeypatch):
+        monkeypatch.setenv("DEFAULT_COLLECTION", "vista")
+        settings = QdrantSettings()
+        assert settings.default_collection == "vista"
+
+    def test_empty_collections_by_default(self):
+        settings = QdrantSettings()
+        assert settings.collections == []
+        assert settings.default_collection == ""
 
 
 class TestEmbeddingProviderSettings:

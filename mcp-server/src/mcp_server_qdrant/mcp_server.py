@@ -10,7 +10,7 @@ from mcp_server_qdrant.common.filters import make_indexes
 from mcp_server_qdrant.common.func_tools import make_partial_function
 from mcp_server_qdrant.common.wrap_filters import wrap_filters
 from mcp_server_qdrant.embeddings.base import EmbeddingProvider
-from mcp_server_qdrant.embeddings.factory import create_embedding_provider
+from mcp_server_qdrant.embeddings.factory import create_collection_providers, create_embedding_provider
 from mcp_server_qdrant.qdrant import ArbitraryFilter, Entry, Metadata, QdrantConnector
 from mcp_server_qdrant.settings import (
     EmbeddingProviderSettings,
@@ -65,13 +65,19 @@ class QdrantMCPServer(FastMCP):
 
         assert self.embedding_provider is not None, "Embedding provider is required"
 
+        # When multi-collection config is present, create per-collection providers
+        collection_providers = {}
+        if qdrant_settings.collections:
+            collection_providers = create_collection_providers(qdrant_settings.collections)
+
         self.qdrant_connector = QdrantConnector(
             qdrant_settings.location,
             qdrant_settings.api_key,
-            qdrant_settings.collection_name,
+            qdrant_settings.collection_name or qdrant_settings.default_collection or None,
             self.embedding_provider,
             qdrant_settings.local_path,
             make_indexes(qdrant_settings.filterable_fields_dict()),
+            embedding_providers=collection_providers if collection_providers else None,
         )
 
         super().__init__(name=name, instructions=instructions, **settings)
