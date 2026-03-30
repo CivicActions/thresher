@@ -193,7 +193,7 @@ class TestTextFileEndToEnd:
         first = points[0]
         assert first.payload["source"] == "source/hello.txt"
         assert first.payload["content_hash"] == result.content_hash
-        assert first.payload["collection"] == COLLECTION
+        assert first.payload["metadata"]["collection"] == COLLECTION
 
     def test_large_text_produces_multiple_chunks(self, processor, source_provider, clean_qdrant):
         # Create content large enough for multiple chunks (~256 token chunks)
