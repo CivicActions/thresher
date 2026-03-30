@@ -6,7 +6,7 @@ import fnmatch
 import logging
 import re
 
-from thresher.types import RoutingRule
+from thresher.types import RouteResult, RoutingRule
 
 logger = logging.getLogger("thresher.router")
 
@@ -22,31 +22,34 @@ class Router:
         self,
         rules: list[RoutingRule],
         default_collection: str = "default",
+        default_embedding: str = "default",
     ):
         self.rules = rules
         self.default_collection = default_collection
+        self.default_embedding = default_embedding
 
     def route(
         self,
         file_path: str,
         file_type_group: str | None = None,
-    ) -> str:
-        """Determine the target collection for a file.
+    ) -> RouteResult:
+        """Determine the target collection and embedding model for a file.
 
         Args:
             file_path: Source provider path to the file
             file_type_group: Classified file type group name
 
         Returns:
-            Target collection name
+            RouteResult with collection name and embedding model name
         """
         filename = file_path.rsplit("/", 1)[-1] if "/" in file_path else file_path
 
         for rule in self.rules:
             if self._matches_rule(rule, file_path, filename, file_type_group):
-                return rule.collection
+                embedding = rule.embedding or self.default_embedding
+                return RouteResult(collection=rule.collection, embedding=embedding)
 
-        return self.default_collection
+        return RouteResult(collection=self.default_collection, embedding=self.default_embedding)
 
     def _matches_rule(
         self,

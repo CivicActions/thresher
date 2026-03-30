@@ -365,3 +365,141 @@ class TestExpansionConfigFields:
         assert cfg.processing.max_expansion_parallelism == 10
         assert cfg.processing.upload_batch_size == 100
         assert cfg.processing.expansion_timeout == 7200
+
+
+# ---------------------------------------------------------------------------
+# Multi-model embedding config (T005)
+# ---------------------------------------------------------------------------
+
+
+class TestMultiModelEmbeddingConfig:
+    """Tests for multi-model embedding config parsing."""
+
+    def test_default_model_created_when_no_models_key(self):
+        """When no embedding.models key is given, a 'default' model entry is created."""
+        cfg = load_config()
+        assert "default" in cfg.embedding.models
+        default_model = cfg.embedding.models["default"]
+        assert default_model.model == "sentence-transformers/all-MiniLM-L6-v2"
+        assert default_model.vector_size == 384
+        assert default_model.vector_name == "fast-all-minilm-l6-v2"
+        assert default_model.max_tokens == 512
+
+    def test_legacy_config_default_name_is_default(self):
+        cfg = load_config()
+        assert cfg.embedding.default == "default"
+
+    def test_multi_model_config_parsed(self, tmp_path):
+        user_file = tmp_path / "config.yaml"
+        user_file.write_text(
+            textwrap.dedent("""
+                embedding:
+                  default: docs
+                  models:
+                    docs:
+                      model: "nomic-ai/nomic-embed-text-v1.5"
+                      vector_size: 768
+                      vector_name: "nomic-v1.5"
+                      max_tokens: 512
+                      index_prefix: "search_document: "
+                      query_prefix: "search_query: "
+                    code:
+                      model: "jinaai/jina-embeddings-v2-base-code"
+                      vector_size: 768
+                      vector_name: "jina-code-v2"
+                      max_tokens: 512
+            """),
+            encoding="utf-8",
+        )
+        cfg = load_config(user_file)
+        assert cfg.embedding.default == "docs"
+        assert set(cfg.embedding.models.keys()) == {"docs", "code"}
+
+        docs = cfg.embedding.models["docs"]
+        assert docs.model == "nomic-ai/nomic-embed-text-v1.5"
+        assert docs.vector_size == 768
+        assert docs.vector_name == "nomic-v1.5"
+        assert docs.index_prefix == "search_document: "
+        assert docs.query_prefix == "search_query: "
+
+        code = cfg.embedding.models["code"]
+        assert code.model == "jinaai/jina-embeddings-v2-base-code"
+        assert code.vector_name == "jina-code-v2"
+        assert code.index_prefix == ""
+        assert code.query_prefix == ""
+
+    def test_routing_rule_embedding_field_parsed(self, tmp_path):
+        user_file = tmp_path / "config.yaml"
+        user_file.write_text(
+            textwrap.dedent("""
+                embedding:
+                  default: docs
+                  models:
+                    docs:
+                      model: "nomic-ai/nomic-embed-text-v1.5"
+                      vector_size: 768
+                      vector_name: "nomic-v1.5"
+                    code:
+                      model: "jinaai/jina-embeddings-v2-base-code"
+                      vector_size: 768
+                      vector_name: "jina-code-v2"
+                routing:
+                  default_collection: vista
+                  rules:
+                    - collection: vista-source
+                      embedding: code
+                    - collection: vista
+            """),
+            encoding="utf-8",
+        )
+        cfg = load_config(user_file)
+        assert cfg.routing.rules[0].embedding == "code"
+        assert cfg.routing.rules[1].embedding == ""
+
+    def test_validate_config_catches_bad_default(self):
+        from thresher.config import validate_config
+
+        merged = {
+            "embedding": {
+                "default": "nonexistent",
+                "models": {"docs": {"model": "m", "vector_size": 768, "vector_name": "v"}},
+            }
+        }
+        errors = validate_config(merged)
+        assert any("nonexistent" in e for e in errors)
+
+    def test_validate_config_catches_bad_rule_embedding(self):
+        from thresher.config import validate_config
+
+        merged = {
+            "embedding": {
+                "default": "docs",
+                "models": {"docs": {"model": "m", "vector_size": 768, "vector_name": "v"}},
+            },
+            "routing": {"rules": [{"collection": "col", "embedding": "bad-model"}]},
+        }
+        errors = validate_config(merged)
+        assert any("bad-model" in e for e in errors)
+
+    def test_validate_config_passes_valid_multi_model(self):
+        from thresher.config import validate_config
+
+        merged = {
+            "embedding": {
+                "default": "docs",
+                "models": {
+                    "docs": {"model": "m", "vector_size": 768, "vector_name": "v"},
+                    "code": {"model": "c", "vector_size": 768, "vector_name": "cv"},
+                },
+            },
+            "routing": {
+                "rules": [
+                    {"collection": "col1", "embedding": "code"},
+                    {"collection": "col2"},
+                ]
+            },
+        }
+        errors = validate_config(merged)
+        # Only schema errors allowed (none for valid config)
+        semantic_errors = [e for e in errors if "embedding" in e.lower() or "routing" in e.lower()]
+        assert not semantic_errors

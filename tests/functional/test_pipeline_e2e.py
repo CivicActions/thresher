@@ -29,6 +29,7 @@ from thresher.config import (
 )
 from thresher.types import (
     ChunkerConfig,
+    EmbeddingModelConfig,
     FileTypeGroup,
     ProcessingStatus,
 )
@@ -64,10 +65,14 @@ def _make_config() -> Config:
             ),
         ),
         embedding=EmbeddingConfig(
-            model="sentence-transformers/all-MiniLM-L6-v2",
-            vector_size=VECTOR_SIZE,
-            vector_name=VECTOR_NAME,
-            max_tokens=512,
+            models={
+                "default": EmbeddingModelConfig(
+                    model="sentence-transformers/all-MiniLM-L6-v2",
+                    vector_size=VECTOR_SIZE,
+                    vector_name=VECTOR_NAME,
+                    max_tokens=512,
+                )
+            }
         ),
         file_type_groups={
             "plain-text": FileTypeGroup(
@@ -135,11 +140,20 @@ def dest_provider(clean_qdrant):
 
 @pytest.fixture(scope="session")
 def embedder():
-    from thresher.embedder import Embedder
+    from thresher.embedder import MultiModelEmbedder
 
     try:
-        emb = Embedder(model_name="sentence-transformers/all-MiniLM-L6-v2", max_tokens=512)
-        emb.preload()
+        emb = MultiModelEmbedder(
+            models={
+                "default": EmbeddingModelConfig(
+                    model="sentence-transformers/all-MiniLM-L6-v2",
+                    vector_size=VECTOR_SIZE,
+                    vector_name=VECTOR_NAME,
+                    max_tokens=512,
+                )
+            }
+        )
+        emb.preload("default")
         return emb
     except Exception as exc:
         pytest.skip(f"Embedding model not available: {exc}")

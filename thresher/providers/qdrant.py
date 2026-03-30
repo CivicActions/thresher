@@ -73,7 +73,7 @@ class QdrantDestinationProvider:
         points = [
             PointStruct(
                 id=chunk.point_id,
-                vector={self.vector_name: chunk.vector},
+                vector={chunk.vector_name or self.vector_name: chunk.vector},
                 payload=chunk.payload,
             )
             for chunk in chunks

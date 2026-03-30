@@ -2,12 +2,14 @@ repos:
 - hooks:
   - args:
     - --fix
+    exclude: ^mcp-server/
     id: ruff
-  - id: ruff-format
+  - exclude: ^mcp-server/
+    id: ruff-format
   repo: https://github.com/astral-sh/ruff-pre-commit
   rev: v0.11.11
 - hooks:
-  - entry: uv run ty check --python-version 3.10 --error-on-warning
+  - entry: uv run ty check --python-version 3.10 --error-on-warning --exclude mcp-server
     id: ty
     language: system
     name: ty type check

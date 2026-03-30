@@ -46,7 +46,7 @@ def config() -> Config:
         qdrant=QdrantConfig(url="http://localhost:6333"),
     )
     cfg.routing = RoutingConfig(default_collection="default", rules=[])
-    cfg.embedding = EmbeddingConfig(vector_size=384, vector_name="test-vec")
+    cfg.embedding = EmbeddingConfig()
     cfg.queue = QueueConfig(batch_size=1000, lease_timeout=600)
     cfg.processing = ProcessingConfig(retry_max=3, memory_threshold_mb=4096, per_file_timeout=600)
     return cfg

@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-from thresher.types import ChunkerConfig, FileTypeGroup, RoutingRule
+from thresher.types import ChunkerConfig, EmbeddingModelConfig, FileTypeGroup, RoutingRule
 from thresher.url_resolver import UrlResolverConfig, parse_url_resolvers
 
 logger = logging.getLogger("thresher.config")
@@ -80,10 +80,8 @@ class ProcessingConfig:
 
 @dataclass
 class EmbeddingConfig:
-    model: str = "sentence-transformers/all-MiniLM-L6-v2"
-    vector_size: int = 384
-    vector_name: str = "fast-all-minilm-l6-v2"
-    max_tokens: int = 512
+    default: str = "default"
+    models: dict[str, EmbeddingModelConfig] = field(default_factory=dict)
 
 
 @dataclass
@@ -250,9 +248,51 @@ def _parse_routing_rules(raw: list[Any] | None) -> list[RoutingRule]:
                 file_group=entry.get("file_group", []),
                 path=entry.get("path", []),
                 filename=entry.get("filename", []),
+                embedding=entry.get("embedding", ""),
             )
         )
     return rules
+
+
+def _parse_embedding_config(embed_raw: Any) -> "EmbeddingConfig":
+    """Parse raw embedding config dict into EmbeddingConfig.
+
+    When ``embedding.models`` is absent or empty, a ``"default"`` model entry
+    is created using the built-in defaults for the all-MiniLM-L6-v2 model.
+    """
+    if not isinstance(embed_raw, dict):
+        embed_raw = {}
+
+    raw_models = embed_raw.get("models")
+    if raw_models and isinstance(raw_models, dict):
+        models: dict[str, EmbeddingModelConfig] = {}
+        for name, spec in raw_models.items():
+            if not isinstance(spec, dict):
+                continue
+            models[name] = EmbeddingModelConfig(
+                model=str(spec.get("model", "")),
+                vector_size=int(spec.get("vector_size", 384)),
+                vector_name=str(spec.get("vector_name", "")),
+                max_tokens=int(spec.get("max_tokens", 512)),
+                index_prefix=str(spec.get("index_prefix", "")),
+                query_prefix=str(spec.get("query_prefix", "")),
+            )
+        default_name = str(embed_raw.get("default", "default"))
+    else:
+        models = {
+            "default": EmbeddingModelConfig(
+                model="sentence-transformers/all-MiniLM-L6-v2",
+                vector_size=384,
+                vector_name="fast-all-minilm-l6-v2",
+                max_tokens=512,
+            )
+        }
+        default_name = "default"
+
+    return EmbeddingConfig(
+        default=default_name,
+        models=models,
+    )
 
 
 def _build_config(raw: dict[str, Any]) -> Config:
@@ -365,24 +405,7 @@ def _build_config(raw: dict[str, Any]) -> Config:
                 proc_raw.get("expansion_timeout", 3600) if isinstance(proc_raw, dict) else 3600
             ),
         ),
-        embedding=EmbeddingConfig(
-            model=str(
-                embed_raw.get("model", "sentence-transformers/all-MiniLM-L6-v2")
-                if isinstance(embed_raw, dict)
-                else "sentence-transformers/all-MiniLM-L6-v2"
-            ),
-            vector_size=int(
-                embed_raw.get("vector_size", 384) if isinstance(embed_raw, dict) else 384
-            ),
-            vector_name=str(
-                embed_raw.get("vector_name", "fast-all-minilm-l6-v2")
-                if isinstance(embed_raw, dict)
-                else "fast-all-minilm-l6-v2"
-            ),
-            max_tokens=int(
-                embed_raw.get("max_tokens", 512) if isinstance(embed_raw, dict) else 512
-            ),
-        ),
+        embedding=_parse_embedding_config(embed_raw),
         kubernetes=K8sConfig(
             namespace=str(k8s_raw.get("namespace", "") if isinstance(k8s_raw, dict) else ""),
             service_account=str(
@@ -445,25 +468,57 @@ def _build_config(raw: dict[str, Any]) -> Config:
 
 
 def validate_config(merged: dict) -> list[str]:
-    """Validate a merged config dict against the JSON Schema.
+    """Validate a merged config dict against the JSON Schema and semantic rules.
 
     Returns a list of validation error messages (empty if valid).
     """
+    errors: list[str] = []
+
     try:
         import jsonschema
     except ImportError:
         logger.debug("jsonschema not installed — skipping config validation")
-        return []
+        return errors
 
     schema_path = Path(__file__).parent / "config_schema.json"
     if not schema_path.exists():
         logger.debug("Config schema not found at %s", schema_path)
-        return []
+        return errors
 
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     validator = jsonschema.Draft202012Validator(schema)
-    errors = sorted(validator.iter_errors(merged), key=lambda e: list(e.absolute_path))
-    return [f"{'.'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}" for e in errors]
+    schema_errors = sorted(validator.iter_errors(merged), key=lambda e: list(e.absolute_path))
+    errors.extend(
+        [
+            f"{'.'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"
+            for e in schema_errors
+        ]
+    )
+
+    # Semantic validation: embedding model references
+    embed_raw = merged.get("embedding", {})
+    if isinstance(embed_raw, dict):
+        raw_models = embed_raw.get("models")
+        if raw_models and isinstance(raw_models, dict):
+            model_keys = set(raw_models.keys())
+            default_name = embed_raw.get("default", "default")
+            if default_name not in model_keys:
+                errors.append(
+                    f"embedding.default: '{default_name}' does not reference a key in "
+                    "embedding.models"
+                )
+            # Check routing rules reference valid embedding model names
+            routing_raw = merged.get("routing", {})
+            if isinstance(routing_raw, dict):
+                for i, rule in enumerate(routing_raw.get("rules", []) or []):
+                    rule_embedding = rule.get("embedding", "")
+                    if rule_embedding and rule_embedding not in model_keys:
+                        errors.append(
+                            f"routing.rules[{i}].embedding: '{rule_embedding}' does not reference "
+                            f"a key in embedding.models"
+                        )
+
+    return errors
 
 
 def load_config(config_path: str | Path | None = None) -> Config:

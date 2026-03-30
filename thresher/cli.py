@@ -55,6 +55,12 @@ def main(argv: list[str] | None = None) -> int:
     # Status subcommand
     subparsers.add_parser("status", help="Show pipeline queue and indexing status")
 
+    # MCP config subcommand
+    subparsers.add_parser(
+        "mcp-config",
+        help="Output MCP server configuration JSON derived from pipeline config",
+    )
+
     args = parser.parse_args(argv)
     setup_logging(level=args.log_level)
 
@@ -68,6 +74,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_expander(config, args)
     elif args.command == "status":
         return _run_status(config)
+    elif args.command == "mcp-config":
+        return _run_mcp_config(config)
 
     return 1
 
@@ -182,17 +190,13 @@ def _run_controller(config, args) -> int:
 
 def _run_local(config, source) -> int:
     """Run an embedded runner after queue building."""
-    from thresher.embedder import Embedder
+    from thresher.embedder import MultiModelEmbedder
     from thresher.runner.loop import RunnerLoop
     from thresher.runner.processor import create_destination_provider
     from thresher.types import ProcessingStatus
 
     destination = create_destination_provider(config)
-    embedder = Embedder(
-        model_name=config.embedding.model,
-        max_tokens=config.embedding.max_tokens,
-    )
-    embedder.preload()
+    embedder = MultiModelEmbedder(models=config.embedding.models)
 
     try:
         loop = RunnerLoop(
@@ -265,7 +269,7 @@ def _run_status(config) -> int:
 
 def _run_runner(config, args) -> int:
     """Execute the runner workflow."""
-    from thresher.embedder import Embedder
+    from thresher.embedder import MultiModelEmbedder
     from thresher.runner.loop import RunnerLoop
     from thresher.runner.processor import create_destination_provider, create_source_provider
     from thresher.types import ProcessingStatus
@@ -273,11 +277,7 @@ def _run_runner(config, args) -> int:
     config.force = getattr(args, "force", False)
     source = create_source_provider(config)
     destination = create_destination_provider(config)
-    embedder = Embedder(
-        model_name=config.embedding.model,
-        max_tokens=config.embedding.max_tokens,
-    )
-    embedder.preload()
+    embedder = MultiModelEmbedder(models=config.embedding.models)
 
     try:
         loop = RunnerLoop(
@@ -299,3 +299,69 @@ def _run_runner(config, args) -> int:
         return 0 if failed == 0 else 1
     finally:
         destination.close()
+
+
+def _run_mcp_config(config) -> int:
+    """Output MCP server configuration JSON derived from the pipeline config.
+
+    Walks routing rules to enumerate all collections and their assigned embedding
+    models, then outputs a JSON object suitable for configuring the MCP server.
+    """
+    import json
+
+    embedding = config.embedding
+    default_model_name = embedding.default
+
+    # Enumerate all collections from routing rules + the default collection
+    # collection_name -> model_name (first rule wins for a given collection)
+    collection_models: dict[str, str] = {}
+
+    for rule in config.routing.rules:
+        col = rule.collection
+        if col and col not in collection_models:
+            model_name = rule.embedding or default_model_name
+            collection_models[col] = model_name
+
+    # Add default collection if not already in rules
+    default_col = config.routing.default_collection
+    if default_col and default_col not in collection_models:
+        collection_models[default_col] = default_model_name
+
+    collections = []
+    for col_name, model_name in collection_models.items():
+        model_cfg = embedding.models.get(model_name)
+        if model_cfg is None:
+            continue
+        collections.append(
+            {
+                "name": col_name,
+                "model": model_cfg.model,
+                "vector_name": model_cfg.vector_name,
+                "vector_size": model_cfg.vector_size,
+                "query_prefix": model_cfg.query_prefix,
+            }
+        )
+
+    output = {
+        "qdrant_url": config.destination.qdrant.url,
+        # API key is surfaced as a named input so it can be injected at runtime
+        # by the MCP client rather than stored in plain text. Use a read-only
+        # Qdrant API key scoped to the collection(s) being searched.
+        "qdrant_api_key": "${input:qdrantApiKey}",
+        "default_collection": default_col,
+        "read_only": True,
+        "collections": collections,
+        "_inputs": [
+            {
+                "id": "qdrantApiKey",
+                "type": "promptString",
+                "description": (
+                    "Qdrant API key (use a read-only key scoped to the search collection)"
+                ),
+                "password": True,
+            }
+        ],
+    }
+
+    print(json.dumps(output, indent=2))
+    return 0

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Generator
 
 from thresher.config import Config
-from thresher.embedder import Embedder
+from thresher.embedder import MultiModelEmbedder
 from thresher.processing.classifier import classify_file
 from thresher.processing.router import Router
 from thresher.providers.destination import DestinationProvider
@@ -59,7 +59,7 @@ class FileProcessor:
         self,
         source: SourceProvider,
         destination: DestinationProvider,
-        embedder: Embedder,
+        embedder: MultiModelEmbedder,
         router: Router,
         config: Config,
     ):
@@ -118,13 +118,18 @@ class FileProcessor:
                     )
 
                 # 3. Route to collection
-                collection = self.router.route(file_path, group_name)
+                route_result = self.router.route(file_path, group_name)
+                collection = route_result.collection
+                embedding_name = route_result.embedding
+
+                # Look up vector params from the assigned embedding model config
+                model_config = self.embedder.get_model_config(embedding_name)
 
                 # Ensure collection exists
                 self.destination.ensure_collection(
                     collection,
-                    self.config.embedding.vector_size,
-                    self.config.embedding.vector_name,
+                    model_config.vector_size,
+                    model_config.vector_name,
                 )
 
                 # 4. Extract
@@ -169,7 +174,7 @@ class FileProcessor:
 
                 # 8. Embed
                 chunk_texts = [c["text"] for c in raw_chunks]
-                vectors = self.embedder.embed_texts(chunk_texts)
+                vectors = self.embedder.embed_texts(chunk_texts, embedding_name)
 
                 # 9. Build IndexChunks with metadata
                 index_chunks: list[IndexChunk] = []
@@ -218,6 +223,7 @@ class FileProcessor:
                             text=chunk_data["text"],
                             vector=vector,
                             payload=payload,
+                            vector_name=model_config.vector_name,
                         )
                     )
 
@@ -386,6 +392,6 @@ def create_destination_provider(config: Config) -> DestinationProvider:
             api_key=config.destination.qdrant.api_key,
             timeout=config.destination.qdrant.timeout,
             batch_size=config.destination.qdrant.batch_size,
-            vector_name=config.embedding.vector_name,
+            vector_name=config.embedding.models[config.embedding.default].vector_name,
         )
     raise ValueError(f"Unknown destination provider: {config.destination.provider}")

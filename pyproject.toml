@@ -40,9 +40,15 @@ update_changelog_on_bump = true
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+extend-exclude = ["mcp-server"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+
+[tool.ty]
+
+[tool.ty.src]
+exclude = ["mcp-server/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

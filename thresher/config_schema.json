@@ -230,6 +230,10 @@
                   "type": "string"
                 },
                 "description": "Filename glob patterns to match."
+              },
+              "embedding": {
+                "type": "string",
+                "description": "Name of embedding model config to use for this rule's collection. Empty means use the default."
               }
             }
           }
@@ -347,23 +351,47 @@
       "description": "Embedding model settings.",
       "additionalProperties": false,
       "properties": {
-        "model": {
+        "default": {
           "type": "string",
-          "default": "sentence-transformers/all-MiniLM-L6-v2"
+          "description": "Name of the default embedding model from the models map."
         },
-        "vector_size": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 384
-        },
-        "vector_name": {
-          "type": "string",
-          "default": "fast-all-minilm-l6-v2"
-        },
-        "max_tokens": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 512
+        "models": {
+          "type": "object",
+          "description": "Map of named embedding model configurations.",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "model",
+              "vector_size",
+              "vector_name"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "model": {
+                "type": "string"
+              },
+              "vector_size": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "vector_name": {
+                "type": "string"
+              },
+              "max_tokens": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 512
+              },
+              "index_prefix": {
+                "type": "string",
+                "default": ""
+              },
+              "query_prefix": {
+                "type": "string",
+                "default": ""
+              }
+            }
+          }
         }
       }
     },

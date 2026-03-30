@@ -24,6 +24,7 @@ from thresher.types import (
     ChunkerConfig,
     FileTypeGroup,
     ProcessingStatus,
+    RouteResult,
 )
 
 # ---------------------------------------------------------------------------
@@ -173,7 +174,7 @@ def config(file_type_groups):
         default_collection="default",
         rules=[],
     )
-    cfg.embedding = EmbeddingConfig(vector_size=384, vector_name="test-vec")
+    cfg.embedding = EmbeddingConfig()
     cfg.queue = QueueConfig(batch_size=1000)
     cfg.processing = ProcessingConfig()
     return cfg
@@ -202,7 +203,7 @@ def mock_embedder():
 @pytest.fixture
 def mock_router():
     router = MagicMock()
-    router.route.return_value = "default"
+    router.route.return_value = RouteResult(collection="default", embedding="default")
     return router
 
 
