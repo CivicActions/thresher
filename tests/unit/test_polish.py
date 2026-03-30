@@ -21,6 +21,7 @@ from thresher.controller.queue_builder import queue_summary
 from thresher.controller.scanner import scan_summary
 from thresher.runner.processor import FileProcessor
 from thresher.types import (
+    RouteResult,
     ChunkerConfig,
     FileTypeGroup,
     ProcessingStatus,
@@ -202,7 +203,7 @@ def mock_embedder():
 @pytest.fixture
 def mock_router():
     router = MagicMock()
-    router.route.return_value = "default"
+    router.route.return_value = RouteResult(collection="default", embedding="default")
     return router
 
 

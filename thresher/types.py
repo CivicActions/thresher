@@ -47,12 +47,33 @@ class FileTypeGroup:
 
 
 @dataclass
+class EmbeddingModelConfig:
+    """Configuration for a single named embedding model."""
+
+    model: str
+    vector_size: int
+    vector_name: str
+    max_tokens: int = 512
+    index_prefix: str = ""
+    query_prefix: str = ""
+
+
+@dataclass
+class RouteResult:
+    """Return type from Router.route() — collection name and embedding model name."""
+
+    collection: str
+    embedding: str
+
+
+@dataclass
 class RoutingRule:
     collection: str
     name: str = ""
     file_group: list[str] = field(default_factory=list)
     path: list[str] = field(default_factory=list)
     filename: list[str] = field(default_factory=list)
+    embedding: str = ""
 
 
 @dataclass
@@ -124,3 +145,4 @@ class IndexChunk:
     text: str
     vector: list[float]
     payload: dict
+    vector_name: str = ""

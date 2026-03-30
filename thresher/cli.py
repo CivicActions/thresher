@@ -182,17 +182,13 @@ def _run_controller(config, args) -> int:
 
 def _run_local(config, source) -> int:
     """Run an embedded runner after queue building."""
-    from thresher.embedder import Embedder
+    from thresher.embedder import MultiModelEmbedder
     from thresher.runner.loop import RunnerLoop
     from thresher.runner.processor import create_destination_provider
     from thresher.types import ProcessingStatus
 
     destination = create_destination_provider(config)
-    embedder = Embedder(
-        model_name=config.embedding.model,
-        max_tokens=config.embedding.max_tokens,
-    )
-    embedder.preload()
+    embedder = MultiModelEmbedder(models=config.embedding.models)
 
     try:
         loop = RunnerLoop(
@@ -265,7 +261,7 @@ def _run_status(config) -> int:
 
 def _run_runner(config, args) -> int:
     """Execute the runner workflow."""
-    from thresher.embedder import Embedder
+    from thresher.embedder import MultiModelEmbedder
     from thresher.runner.loop import RunnerLoop
     from thresher.runner.processor import create_destination_provider, create_source_provider
     from thresher.types import ProcessingStatus
@@ -273,11 +269,7 @@ def _run_runner(config, args) -> int:
     config.force = getattr(args, "force", False)
     source = create_source_provider(config)
     destination = create_destination_provider(config)
-    embedder = Embedder(
-        model_name=config.embedding.model,
-        max_tokens=config.embedding.max_tokens,
-    )
-    embedder.preload()
+    embedder = MultiModelEmbedder(models=config.embedding.models)
 
     try:
         loop = RunnerLoop(

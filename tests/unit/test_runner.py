@@ -24,6 +24,7 @@ from thresher.runner.processor import (
     dispatch_chunker,
 )
 from thresher.types import (
+    RouteResult,
     ChunkerConfig,
     FileInfo,
     FileTypeGroup,
@@ -126,7 +127,7 @@ def mock_embedder():
 @pytest.fixture
 def mock_router():
     router = MagicMock()
-    router.route.return_value = "default"
+    router.route.return_value = RouteResult(collection="default", embedding="default")
     return router
 
 

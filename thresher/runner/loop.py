@@ -8,7 +8,7 @@ import time
 
 from thresher.config import Config
 from thresher.controller.queue_builder import _serialize_batch, deserialize_batch
-from thresher.embedder import Embedder
+from thresher.embedder import MultiModelEmbedder
 from thresher.processing.router import Router
 from thresher.providers.destination import DestinationProvider
 from thresher.providers.source import SourceProvider
@@ -27,7 +27,7 @@ class RunnerLoop:
         runner_id: str,
         source: SourceProvider,
         destination: DestinationProvider,
-        embedder: Embedder,
+        embedder: MultiModelEmbedder,
         config: Config,
     ):
         self.runner_id = runner_id
@@ -38,6 +38,7 @@ class RunnerLoop:
         router = Router(
             rules=config.routing.rules,
             default_collection=config.routing.default_collection,
+            default_embedding=config.embedding.default,
         )
 
         self.processor = FileProcessor(
