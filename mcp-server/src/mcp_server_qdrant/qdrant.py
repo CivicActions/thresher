@@ -109,6 +109,7 @@ class QdrantConnector:
         *,
         collection_name: str | None = None,
         limit: int = 10,
+        offset: int | None = None,
         query_filter: models.Filter | None = None,
     ) -> list[Entry]:
         """
@@ -117,6 +118,8 @@ class QdrantConnector:
         :param collection_name: The name of the collection to search in, optional. If not provided,
                                 the default collection is used.
         :param limit: The maximum number of entries to return.
+        :param offset: Number of results to skip (for pagination). Qdrant skips the first N
+                       score-ranked results before returning ``limit`` entries.
         :param query_filter: The filter to apply to the query, if any.
 
         :return: A list of entries found.
@@ -140,6 +143,7 @@ class QdrantConnector:
             query=query_vector,
             using=vector_name,
             limit=limit,
+            offset=offset,
             query_filter=query_filter,
         )
 

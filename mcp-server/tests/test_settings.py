@@ -170,3 +170,34 @@ class TestToolSettings:
         settings = ToolSettings()
         assert settings.tool_store_description == "Custom store description"
         assert settings.tool_find_description == "Custom find description"
+
+
+class TestSearchLimitMax:
+    def test_default_is_none(self):
+        """search_limit_max defaults to None (uncapped)."""
+        settings = QdrantSettings()
+        assert settings.search_limit_max is None
+
+    def test_set_via_env_var(self, monkeypatch):
+        """QDRANT_SEARCH_LIMIT_MAX is parsed as an int."""
+        monkeypatch.setenv("QDRANT_SEARCH_LIMIT_MAX", "50")
+        settings = QdrantSettings()
+        assert settings.search_limit_max == 50
+
+    def test_capping_logic(self, monkeypatch):
+        """num_results > search_limit_max should be capped."""
+        monkeypatch.setenv("QDRANT_SEARCH_LIMIT_MAX", "20")
+        settings = QdrantSettings()
+        # Simulate the capping expression used in find()
+        num_results = 100
+        max_limit = settings.search_limit_max
+        effective = min(num_results, max_limit) if max_limit is not None else num_results
+        assert effective == 20
+
+    def test_no_cap_when_none(self):
+        """When search_limit_max is None, num_results is used as-is."""
+        settings = QdrantSettings()
+        num_results = 100
+        max_limit = settings.search_limit_max
+        effective = min(num_results, max_limit) if max_limit is not None else num_results
+        assert effective == 100

@@ -235,3 +235,95 @@ async def test_nonexistent_collection_search(qdrant_connector):
 
     # Verify results
     assert len(results) == 0
+
+
+@pytest.mark.asyncio
+async def test_search_with_limit(qdrant_connector):
+    """Test that num_results (limit) is respected."""
+    entries = [
+        Entry(content=f"Result number {i}", metadata={"index": i}) for i in range(5)
+    ]
+    for entry in entries:
+        await qdrant_connector.store(entry)
+
+    results = await qdrant_connector.search("result number", limit=2)
+    assert len(results) <= 2
+
+
+@pytest.mark.asyncio
+async def test_search_with_offset_pagination(qdrant_connector):
+    """Test that offset skips the expected number of results."""
+    entries = [
+        Entry(content=f"Paginated entry {i}", metadata={"index": i}) for i in range(5)
+    ]
+    for entry in entries:
+        await qdrant_connector.store(entry)
+
+    all_results = await qdrant_connector.search("paginated entry", limit=5)
+    paginated_results = await qdrant_connector.search(
+        "paginated entry", limit=5, offset=2
+    )
+
+    # With offset=2 we should get at most 3 results from the original 5
+    assert len(paginated_results) <= len(all_results)
+    assert len(paginated_results) <= 3
+
+
+@pytest.mark.asyncio
+async def test_search_with_source_path_filter(qdrant_connector):
+    """Test filtering search results by the top-level 'source' payload field."""
+    from qdrant_client import models as qdrant_models
+    import uuid as _uuid
+
+    # Store a seed entry to create the collection and infer vector config
+    seed_entry = Entry(content="seed for collection creation")
+    await qdrant_connector.store(seed_entry)
+
+    col = qdrant_connector._default_collection_name
+    provider = qdrant_connector._get_provider(col)
+    vector_name = provider.get_vector_name()
+    embeddings_a = await provider.embed_documents(["Document about alpha topics"])
+    embeddings_b = await provider.embed_documents(["Document about beta topics"])
+
+    # Insert entries that mimic thresher's payload structure (top-level 'source' field)
+    await qdrant_connector._client.upsert(
+        collection_name=col,
+        points=[
+            qdrant_models.PointStruct(
+                id=_uuid.uuid4().hex,
+                vector={vector_name: embeddings_a[0]},
+                payload={
+                    "document": "Document about alpha topics",
+                    "source": "gs://bucket/alpha.pdf",
+                    "metadata": None,
+                },
+            ),
+            qdrant_models.PointStruct(
+                id=_uuid.uuid4().hex,
+                vector={vector_name: embeddings_b[0]},
+                payload={
+                    "document": "Document about beta topics",
+                    "source": "gs://bucket/beta.pdf",
+                    "metadata": None,
+                },
+            ),
+        ],
+    )
+
+    # Filter to alpha source only
+    source_filter = qdrant_models.Filter(
+        must=[
+            qdrant_models.FieldCondition(
+                key="source",
+                match=qdrant_models.MatchValue(value="gs://bucket/alpha.pdf"),
+            )
+        ]
+    )
+    results = await qdrant_connector.search(
+        "document topics", query_filter=source_filter
+    )
+
+    matching = [r for r in results if "alpha" in r.content.lower()]
+    non_matching = [r for r in results if "beta" in r.content.lower()]
+    assert len(matching) >= 1
+    assert len(non_matching) == 0

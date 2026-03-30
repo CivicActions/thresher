@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 
 from fastmcp import Context, FastMCP
 from pydantic import Field
@@ -14,7 +14,7 @@ from mcp_server_qdrant.embeddings.factory import (
     create_collection_providers,
     create_embedding_provider,
 )
-from mcp_server_qdrant.qdrant import ArbitraryFilter, Entry, Metadata, QdrantConnector
+from mcp_server_qdrant.qdrant import ArbitraryFilter, Entry, QdrantConnector
 from mcp_server_qdrant.settings import (
     EmbeddingProviderSettings,
     QdrantSettings,
@@ -35,8 +35,8 @@ class QdrantMCPServer(FastMCP):
         self,
         tool_settings: ToolSettings,
         qdrant_settings: QdrantSettings,
-        embedding_provider_settings: Optional[EmbeddingProviderSettings] = None,
-        embedding_provider: Optional[EmbeddingProvider] = None,
+        embedding_provider_settings: EmbeddingProviderSettings | None = None,
+        embedding_provider: EmbeddingProvider | None = None,
         name: str = "mcp-server-qdrant",
         instructions: str | None = None,
         **settings: Any,
@@ -54,8 +54,8 @@ class QdrantMCPServer(FastMCP):
                 "Must provide either embedding_provider_settings or embedding_provider"
             )
 
-        self.embedding_provider_settings: Optional[EmbeddingProviderSettings] = None
-        self.embedding_provider: Optional[EmbeddingProvider] = None
+        self.embedding_provider_settings: EmbeddingProviderSettings | None = None
+        self.embedding_provider: EmbeddingProvider | None = None
 
         if embedding_provider_settings:
             self.embedding_provider_settings = embedding_provider_settings
@@ -99,46 +99,42 @@ class QdrantMCPServer(FastMCP):
         Register the tools in the server.
         """
 
-        async def store(
-            ctx: Context,
-            information: Annotated[str, Field(description="Text to store")],
-            collection_name: Annotated[
-                str, Field(description="The collection to store the information in")
-            ],
-            # The `metadata` parameter is defined as non-optional, but it can be None.
-            # If we set it to be optional, some of the MCP clients, like Cursor, cannot
-            # handle the optional parameter correctly.
-            metadata: Annotated[
-                Metadata | None,
-                Field(
-                    description="Extra metadata stored along with memorised information. Any json is accepted."
-                ),
-            ] = None,
-        ) -> str:
-            """
-            Store some information in Qdrant.
-            :param ctx: The context for the request.
-            :param information: The information to store.
-            :param metadata: JSON metadata to store with the information, optional.
-            :param collection_name: The name of the collection to store the information in, optional. If not provided,
-                                    the default collection is used.
-            :return: A message indicating that the information was stored.
-            """
-            await ctx.debug(f"Storing information {information} in Qdrant")
-
-            entry = Entry(content=information, metadata=metadata)
-
-            await self.qdrant_connector.store(entry, collection_name=collection_name)
-            if collection_name:
-                return f"Remembered: {information} in collection {collection_name}"
-            return f"Remembered: {information}"
-
         async def find(
             ctx: Context,
             query: Annotated[str, Field(description="What to search for")],
             collection_name: Annotated[
                 str, Field(description="The collection to search in")
             ],
+            num_results: Annotated[
+                int | None,
+                Field(
+                    description=(
+                        "Number of results to return. Defaults to QDRANT_SEARCH_LIMIT."
+                        " Capped at QDRANT_SEARCH_LIMIT_MAX when set."
+                    ),
+                    default=None,
+                ),
+            ] = None,
+            offset: Annotated[
+                int | None,
+                Field(
+                    description=(
+                        "Number of top-ranked results to skip before returning entries. "
+                        "Use together with num_results for pagination."
+                    ),
+                    default=None,
+                ),
+            ] = None,
+            source_path: Annotated[
+                str | None,
+                Field(
+                    description=(
+                        "Filter by the top-level 'source' payload field (exact match)."
+                        " Use a thresher source path, e.g. 'gs://bucket/file.pdf'."
+                    ),
+                    default=None,
+                ),
+            ] = None,
             query_filter: ArbitraryFilter | None = None,
         ) -> list[str] | None:
             """
@@ -147,22 +143,53 @@ class QdrantMCPServer(FastMCP):
             :param query: The query to use for the search.
             :param collection_name: The name of the collection to search in, optional. If not provided,
                                     the default collection is used.
-            :param query_filter: The filter to apply to the query.
+            :param num_results: Maximum number of results to return. Capped by server max if
+                                configured.
+            :param offset: Number of results to skip for pagination.
+            :param source_path: Filter to entries matching this source path exactly.
+            :param query_filter: Additional arbitrary filter to apply to the query.
             :return: A list of entries found or None.
             """
 
             # Log query_filter
             await ctx.debug(f"Query filter: {query_filter}")
 
-            query_filter = models.Filter(**query_filter) if query_filter else None
+            base_filter = models.Filter(**query_filter) if query_filter else None
+
+            # Merge source_path into the filter when provided
+            if source_path is not None:
+                source_condition = models.FieldCondition(
+                    key="source",
+                    match=models.MatchValue(value=source_path),
+                )
+                if base_filter is not None:
+                    existing_must = list(base_filter.must or [])
+                    base_filter = models.Filter(
+                        must=existing_must + [source_condition],
+                        must_not=base_filter.must_not,
+                        should=base_filter.should,
+                    )
+                else:
+                    base_filter = models.Filter(must=[source_condition])
+
+            # Resolve effective limit: apply optional max cap
+            default_limit = self.qdrant_settings.search_limit
+            max_limit = self.qdrant_settings.search_limit_max
+            if num_results is not None:
+                effective_limit = (
+                    min(num_results, max_limit) if max_limit is not None else num_results
+                )
+            else:
+                effective_limit = default_limit
 
             await ctx.debug(f"Finding results for query {query}")
 
             entries = await self.qdrant_connector.search(
                 query,
                 collection_name=collection_name,
-                limit=self.qdrant_settings.search_limit,
-                query_filter=query_filter,
+                limit=effective_limit,
+                offset=offset,
+                query_filter=base_filter,
             )
             if not entries:
                 return None
@@ -174,7 +201,6 @@ class QdrantMCPServer(FastMCP):
             return content
 
         find_foo = find
-        store_foo = store
 
         filterable_conditions = (
             self.qdrant_settings.filterable_fields_dict_with_conditions()
@@ -189,20 +215,9 @@ class QdrantMCPServer(FastMCP):
             find_foo = make_partial_function(
                 find_foo, {"collection_name": self.qdrant_settings.collection_name}
             )
-            store_foo = make_partial_function(
-                store_foo, {"collection_name": self.qdrant_settings.collection_name}
-            )
 
         self.tool(
             find_foo,
             name="qdrant-find",
             description=self.tool_settings.tool_find_description,
         )
-
-        if not self.qdrant_settings.read_only:
-            # Those methods can modify the database
-            self.tool(
-                store_foo,
-                name="qdrant-store",
-                description=self.tool_settings.tool_store_description,
-            )

@@ -94,6 +94,11 @@ class QdrantSettings(BaseSettings):
     )
     local_path: str | None = Field(default=None, validation_alias="QDRANT_LOCAL_PATH")
     search_limit: int = Field(default=10, validation_alias="QDRANT_SEARCH_LIMIT")
+    search_limit_max: int | None = Field(
+        default=None,
+        validation_alias="QDRANT_SEARCH_LIMIT_MAX",
+        description="Maximum number of results an LLM may request. None means uncapped.",
+    )
     read_only: bool = Field(default=False, validation_alias="QDRANT_READ_ONLY")
 
     collections: list[CollectionConfig] = Field(
