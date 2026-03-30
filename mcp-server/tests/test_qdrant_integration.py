@@ -272,8 +272,9 @@ async def test_search_with_offset_pagination(qdrant_connector):
 @pytest.mark.asyncio
 async def test_search_with_source_path_filter(qdrant_connector):
     """Test filtering search results by the top-level 'source' payload field."""
-    from qdrant_client import models as qdrant_models
     import uuid as _uuid
+
+    from qdrant_client import models as qdrant_models
 
     # Store a seed entry to create the collection and infer vector config
     seed_entry = Entry(content="seed for collection creation")

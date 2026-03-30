@@ -12,7 +12,8 @@ def wrap_filters(
     original_func: Callable, filterable_fields: dict[str, FilterableField]
 ) -> Callable:
     """
-    Wraps the original_func function: replaces `filter` parameter with multiple parameters defined by `filterable_fields`.
+    Wraps the original_func function: replaces `filter` parameter with multiple
+    parameters defined by `filterable_fields`.
     """
 
     sig = inspect.signature(original_func)
@@ -61,7 +62,8 @@ def wrap_filters(
         if field.condition in {"any", "except"}:
             if field_type not in {str, int}:
                 raise ValueError(
-                    f'Only "keyword" and "integer" types are supported for "{field.condition}" condition'
+                    f'Only "keyword" and "integer" types are supported'
+                    f' for "{field.condition}" condition'
                 )
             field_type = list[field_type]  # type: ignore
 

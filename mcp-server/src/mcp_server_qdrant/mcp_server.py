@@ -92,7 +92,10 @@ class QdrantMCPServer(FastMCP):
         Feel free to override this method in your subclass to customize the format of the entry.
         """
         entry_metadata = json.dumps(entry.metadata) if entry.metadata else ""
-        return f"<entry><content>{entry.content}</content><metadata>{entry_metadata}</metadata></entry>"
+        return (
+            f"<entry><content>{entry.content}</content>"
+            f"<metadata>{entry_metadata}</metadata></entry>"
+        )
 
     def setup_tools(self):
         """
@@ -141,8 +144,8 @@ class QdrantMCPServer(FastMCP):
             Find memories in Qdrant.
             :param ctx: The context for the request.
             :param query: The query to use for the search.
-            :param collection_name: The name of the collection to search in, optional. If not provided,
-                                    the default collection is used.
+            :param collection_name: The collection to search in. If not provided, the
+                                     default collection is used.
             :param num_results: Maximum number of results to return. Capped by server max if
                                 configured.
             :param offset: Number of results to skip for pagination.

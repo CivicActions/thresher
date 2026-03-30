@@ -60,8 +60,8 @@ class FilterableField(BaseModel):
         Field(
             default=None,
             description=(
-                "The condition to use for the filter. If not provided, the field will be indexed, but no "
-                "filter argument will be exposed to MCP tool."
+                "The condition to use for the filter. If not provided, the field will be"
+                " indexed, but no filter argument will be exposed to MCP tool."
             ),
         )
     )

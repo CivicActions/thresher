@@ -375,15 +375,15 @@ class TestExpansionConfigFields:
 class TestMultiModelEmbeddingConfig:
     """Tests for multi-model embedding config parsing."""
 
-    def test_legacy_config_promotes_to_default_model(self):
-        """Legacy flat fields are promoted to a single 'default' entry in models."""
+    def test_default_model_created_when_no_models_key(self):
+        """When no embedding.models key is given, a 'default' model entry is created."""
         cfg = load_config()
         assert "default" in cfg.embedding.models
         default_model = cfg.embedding.models["default"]
-        assert default_model.model == cfg.embedding.model
-        assert default_model.vector_size == cfg.embedding.vector_size
-        assert default_model.vector_name == cfg.embedding.vector_name
-        assert default_model.max_tokens == cfg.embedding.max_tokens
+        assert default_model.model == "sentence-transformers/all-MiniLM-L6-v2"
+        assert default_model.vector_size == 384
+        assert default_model.vector_name == "fast-all-minilm-l6-v2"
+        assert default_model.max_tokens == 512
 
     def test_legacy_config_default_name_is_default(self):
         cfg = load_config()

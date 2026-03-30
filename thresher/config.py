@@ -80,10 +80,6 @@ class ProcessingConfig:
 
 @dataclass
 class EmbeddingConfig:
-    model: str = "sentence-transformers/all-MiniLM-L6-v2"
-    vector_size: int = 384
-    vector_name: str = "fast-all-minilm-l6-v2"
-    max_tokens: int = 512
     default: str = "default"
     models: dict[str, EmbeddingModelConfig] = field(default_factory=dict)
 
@@ -259,21 +255,13 @@ def _parse_routing_rules(raw: list[Any] | None) -> list[RoutingRule]:
 
 
 def _parse_embedding_config(embed_raw: Any) -> "EmbeddingConfig":
-    """Parse raw embedding config dict into EmbeddingConfig with backward compat.
+    """Parse raw embedding config dict into EmbeddingConfig.
 
-    When ``embedding.models`` is absent or empty, the legacy flat fields
-    (``model``, ``vector_size``, ``vector_name``, ``max_tokens``) are promoted
-    to a single ``"default"`` entry in ``models``.
+    When ``embedding.models`` is absent or empty, a ``"default"`` model entry
+    is created using the built-in defaults for the all-MiniLM-L6-v2 model.
     """
     if not isinstance(embed_raw, dict):
         embed_raw = {}
-
-    legacy_model = str(
-        embed_raw.get("model", "sentence-transformers/all-MiniLM-L6-v2")
-    )
-    legacy_vector_size = int(embed_raw.get("vector_size", 384))
-    legacy_vector_name = str(embed_raw.get("vector_name", "fast-all-minilm-l6-v2"))
-    legacy_max_tokens = int(embed_raw.get("max_tokens", 512))
 
     raw_models = embed_raw.get("models")
     if raw_models and isinstance(raw_models, dict):
@@ -291,22 +279,17 @@ def _parse_embedding_config(embed_raw: Any) -> "EmbeddingConfig":
             )
         default_name = str(embed_raw.get("default", "default"))
     else:
-        # Backward compat: promote legacy flat fields to a single "default" model
         models = {
             "default": EmbeddingModelConfig(
-                model=legacy_model,
-                vector_size=legacy_vector_size,
-                vector_name=legacy_vector_name,
-                max_tokens=legacy_max_tokens,
+                model="sentence-transformers/all-MiniLM-L6-v2",
+                vector_size=384,
+                vector_name="fast-all-minilm-l6-v2",
+                max_tokens=512,
             )
         }
         default_name = "default"
 
     return EmbeddingConfig(
-        model=legacy_model,
-        vector_size=legacy_vector_size,
-        vector_name=legacy_vector_name,
-        max_tokens=legacy_max_tokens,
         default=default_name,
         models=models,
     )

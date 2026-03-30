@@ -29,6 +29,7 @@ from thresher.config import (
 )
 from thresher.types import (
     ChunkerConfig,
+    EmbeddingModelConfig,
     FileTypeGroup,
     ProcessingStatus,
 )
@@ -64,10 +65,14 @@ def _make_config() -> Config:
             ),
         ),
         embedding=EmbeddingConfig(
-            model="sentence-transformers/all-MiniLM-L6-v2",
-            vector_size=VECTOR_SIZE,
-            vector_name=VECTOR_NAME,
-            max_tokens=512,
+            models={
+                "default": EmbeddingModelConfig(
+                    model="sentence-transformers/all-MiniLM-L6-v2",
+                    vector_size=VECTOR_SIZE,
+                    vector_name=VECTOR_NAME,
+                    max_tokens=512,
+                )
+            }
         ),
         file_type_groups={
             "plain-text": FileTypeGroup(

@@ -28,10 +28,11 @@ class QdrantConnector:
     Encapsulates the connection to a Qdrant server and all the methods to interact with it.
     :param qdrant_url: The URL of the Qdrant server.
     :param qdrant_api_key: The API key to use for the Qdrant server.
-    :param collection_name: The name of the default collection to use. If not provided, each tool will require
-                            the collection name to be provided.
+    :param collection_name: The name of the default collection to use. If not provided,
+                            each tool will require the collection name to be provided.
     :param embedding_provider: The embedding provider to use.
-    :param qdrant_local_path: The path to the storage directory for the Qdrant client, if local mode is used.
+    :param qdrant_local_path: The path to the storage directory for the Qdrant client,
+                             if local mode is used.
     """
 
     def __init__(
@@ -76,8 +77,8 @@ class QdrantConnector:
         """
         Store some information in the Qdrant collection, along with the specified metadata.
         :param entry: The entry to store in the Qdrant collection.
-        :param collection_name: The name of the collection to store the information in, optional. If not provided,
-                                the default collection is used.
+        :param collection_name: The name of the collection to store the information in.
+                                If not provided, the default collection is used.
         """
         collection_name = collection_name or self._default_collection_name
         assert collection_name is not None
@@ -113,7 +114,8 @@ class QdrantConnector:
         query_filter: models.Filter | None = None,
     ) -> list[Entry]:
         """
-        Find points in the Qdrant collection. If there are no entries found, an empty list is returned.
+        Find points in the Qdrant collection.
+        If there are no entries found, an empty list is returned.
         :param query: The query to use for the search.
         :param collection_name: The name of the collection to search in, optional. If not provided,
                                 the default collection is used.

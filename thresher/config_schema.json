@@ -392,28 +392,6 @@
               }
             }
           }
-        },
-        "model": {
-          "type": "string",
-          "description": "Legacy: single-model identifier.",
-          "default": "sentence-transformers/all-MiniLM-L6-v2"
-        },
-        "vector_size": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Legacy: embedding vector dimensionality.",
-          "default": 384
-        },
-        "vector_name": {
-          "type": "string",
-          "description": "Legacy: named vector identifier in Qdrant.",
-          "default": "fast-all-minilm-l6-v2"
-        },
-        "max_tokens": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Legacy: maximum token count.",
-          "default": 512
         }
       }
     },

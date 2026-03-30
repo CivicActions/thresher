@@ -198,10 +198,15 @@ class TestSchemaAcceptsValid:
         errors = validate_config(
             {
                 "embedding": {
-                    "model": "custom-model",
-                    "vector_size": 768,
-                    "vector_name": "custom",
-                    "max_tokens": 256,
+                    "default": "custom",
+                    "models": {
+                        "custom": {
+                            "model": "custom-model",
+                            "vector_size": 768,
+                            "vector_name": "custom-vec",
+                            "max_tokens": 256,
+                        }
+                    },
                 }
             }
         )
