@@ -52,6 +52,9 @@ def main(argv: list[str] | None = None) -> int:
     exp.add_argument("--archive-path", required=True, help="GCS path of archive to expand")
     exp.add_argument("--force", action="store_true", help="Re-expand even if record exists")
 
+    # Status subcommand
+    subparsers.add_parser("status", help="Show pipeline queue and indexing status")
+
     args = parser.parse_args(argv)
     setup_logging(level=args.log_level)
 
@@ -63,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_runner(config, args)
     elif args.command == "expander":
         return _run_expander(config, args)
+    elif args.command == "status":
+        return _run_status(config)
 
     return 1
 
@@ -245,6 +250,17 @@ def _run_expander(config, args) -> int:
     except Exception as e:
         logger.error("Failed to expand %s: %s", archive_path, e)
         return 1
+
+
+def _run_status(config) -> int:
+    """Show pipeline queue and Qdrant collection status."""
+    from thresher.controller.status import format_status, get_pipeline_status
+    from thresher.runner.processor import create_source_provider
+
+    source = create_source_provider(config)
+    status = get_pipeline_status(source, config)
+    print(format_status(status))
+    return 0
 
 
 def _run_runner(config, args) -> int:
