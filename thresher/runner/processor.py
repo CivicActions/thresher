@@ -175,7 +175,7 @@ class FileProcessor:
                 index_chunks: list[IndexChunk] = []
                 for i, (chunk_data, vector) in enumerate(zip(raw_chunks, vectors)):
                     point_id = make_point_id(file_path, i)
-                    payload: dict[str, Any] = {
+                    metadata: dict[str, Any] = {
                         "source": file_path,
                         "source_url": source_url,
                         "content_hash": content_hash,
@@ -200,7 +200,17 @@ class FileProcessor:
                         "is_header",
                     ):
                         if key in chunk_data:
-                            payload[key] = chunk_data[key]
+                            metadata[key] = chunk_data[key]
+
+                    # Payload structure: mcp-server-qdrant expects "document" and "metadata".
+                    # Top-level "source" and "content_hash" are kept for Qdrant filter/index
+                    # compatibility (exists_by_hash, delete_by_source, payload index).
+                    payload: dict[str, Any] = {
+                        "document": chunk_data["text"],
+                        "metadata": metadata,
+                        "source": file_path,
+                        "content_hash": content_hash,
+                    }
 
                     index_chunks.append(
                         IndexChunk(

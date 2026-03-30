@@ -38,10 +38,14 @@ def _make_chunk(
         text=text,
         vector=[0.1] * VECTOR_SIZE,
         payload={
+            "document": text,
+            "metadata": {
+                "source": source,
+                "content_hash": content_hash,
+                "chunk_index": chunk_index,
+            },
             "source": source,
             "content_hash": content_hash,
-            "chunk_index": chunk_index,
-            "text": text,
         },
     )
 

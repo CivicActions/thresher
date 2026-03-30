@@ -76,7 +76,12 @@ class TestIndexChunks:
             point_id=f"point-{idx}",
             text=f"chunk text {idx}",
             vector=[0.1 * idx, 0.2 * idx, 0.3 * idx],
-            payload={"source": "file.txt", "chunk_index": idx},
+            payload={
+                "document": f"chunk text {idx}",
+                "metadata": {"source": "file.txt", "chunk_index": idx},
+                "source": "file.txt",
+                "content_hash": "abc123",
+            },
         )
 
     def test_upserts_points_with_named_vectors(self, mock_qdrant):
