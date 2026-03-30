@@ -65,10 +65,10 @@ def wrap_filters(
                     f'Only "keyword" and "integer" types are supported'
                     f' for "{field.condition}" condition'
                 )
-            field_type = list[field_type]  # type: ignore
+            field_type = list[field_type]
 
         if field.required:
-            annotation = Annotated[field_type, Field(description=field.description)]  # type: ignore
+            annotation = Annotated[field_type, Field(description=field.description)]
             parameter = inspect.Parameter(
                 name=field_name,
                 kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
@@ -76,9 +76,7 @@ def wrap_filters(
             )
             required_new_params.append(parameter)
         else:
-            annotation = Annotated[  # type: ignore
-                Optional[field_type], Field(description=field.description)
-            ]
+            annotation = Annotated[Optional[field_type], Field(description=field.description)]
             parameter = inspect.Parameter(
                 name=field_name,
                 kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
@@ -115,9 +113,7 @@ if __name__ == "__main__":
 
     def find(
         query: Annotated[str, Field(description="What to search for")],
-        collection_name: Annotated[
-            str, Field(description="The collection to search in")
-        ],
+        collection_name: Annotated[str, Field(description="The collection to search in")],
         query_filter: Optional[models.Filter] = None,
     ) -> list[str]:
         print("query", query)
@@ -147,6 +143,4 @@ if __name__ == "__main__":
     wrapped_find(query="dress", collection_name="test", color="red")
 
     print("get_function_type_hints(find)", get_function_type_hints(find))
-    print(
-        "get_function_type_hints(wrapped_find)", get_function_type_hints(wrapped_find)
-    )
+    print("get_function_type_hints(wrapped_find)", get_function_type_hints(wrapped_find))

@@ -309,7 +309,6 @@ def _run_mcp_config(config) -> int:
     """
     import json
 
-
     embedding = config.embedding
     default_model_name = embedding.default
 
@@ -333,13 +332,15 @@ def _run_mcp_config(config) -> int:
         model_cfg = embedding.models.get(model_name)
         if model_cfg is None:
             continue
-        collections.append({
-            "name": col_name,
-            "model": model_cfg.model,
-            "vector_name": model_cfg.vector_name,
-            "vector_size": model_cfg.vector_size,
-            "query_prefix": model_cfg.query_prefix,
-        })
+        collections.append(
+            {
+                "name": col_name,
+                "model": model_cfg.model,
+                "vector_name": model_cfg.vector_name,
+                "vector_size": model_cfg.vector_size,
+                "query_prefix": model_cfg.query_prefix,
+            }
+        )
 
     output = {
         "qdrant_url": config.destination.qdrant.url,

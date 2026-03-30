@@ -98,12 +98,14 @@ def config(file_type_groups):
         rules=[],
     )
     cfg.embedding = EmbeddingConfig(
-        models={"default": EmbeddingModelConfig(
-            model="sentence-transformers/all-MiniLM-L6-v2",
-            vector_size=384,
-            vector_name="test-vec",
-            max_tokens=512,
-        )}
+        models={
+            "default": EmbeddingModelConfig(
+                model="sentence-transformers/all-MiniLM-L6-v2",
+                vector_size=384,
+                vector_name="test-vec",
+                max_tokens=512,
+            )
+        }
     )
     cfg.queue = QueueConfig(batch_size=1000)
     return cfg

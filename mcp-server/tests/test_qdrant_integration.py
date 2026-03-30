@@ -84,9 +84,7 @@ async def test_multiple_entries(qdrant_connector):
     assert any("Eiffel" in result.content for result in landmark_results)
 
     # Search for AI-related entries
-    ai_results = await qdrant_connector.search(
-        "artificial intelligence machine learning"
-    )
+    ai_results = await qdrant_connector.search("artificial intelligence machine learning")
     assert len(ai_results) > 0
     assert any("machine learning" in result.content.lower() for result in ai_results)
 
@@ -119,9 +117,7 @@ async def test_metadata_handling(qdrant_connector):
     await qdrant_connector.store(
         Entry(content="Content with structured metadata", metadata=metadata1)
     )
-    await qdrant_connector.store(
-        Entry(content="Content with list in metadata", metadata=metadata2)
-    )
+    await qdrant_connector.store(Entry(content="Content with list in metadata", metadata=metadata2))
 
     # Search and verify metadata is preserved
     results = await qdrant_connector.search("metadata")
@@ -174,9 +170,7 @@ async def test_custom_collection_store_and_search(qdrant_connector):
     await qdrant_connector.store(test_entry, collection_name=custom_collection)
 
     # Search in the custom collection
-    results = await qdrant_connector.search(
-        "custom collection", collection_name=custom_collection
-    )
+    results = await qdrant_connector.search("custom collection", collection_name=custom_collection)
 
     # Verify results
     assert len(results) == 1
@@ -196,12 +190,8 @@ async def test_multiple_collections(qdrant_connector):
     collection_b = f"collection_b_{uuid.uuid4().hex}"
 
     # Store entries in different collections
-    entry_a = Entry(
-        content="This belongs to collection A", metadata={"collection": "A"}
-    )
-    entry_b = Entry(
-        content="This belongs to collection B", metadata={"collection": "B"}
-    )
+    entry_a = Entry(content="This belongs to collection A", metadata={"collection": "A"})
+    entry_b = Entry(content="This belongs to collection B", metadata={"collection": "B"})
     entry_default = Entry(content="This belongs to the default collection")
 
     await qdrant_connector.store(entry_a, collection_name=collection_a)
@@ -229,9 +219,7 @@ async def test_nonexistent_collection_search(qdrant_connector):
     """Test searching in a collection that doesn't exist."""
     # Search in a collection that doesn't exist
     nonexistent_collection = f"nonexistent_{uuid.uuid4().hex}"
-    results = await qdrant_connector.search(
-        "test query", collection_name=nonexistent_collection
-    )
+    results = await qdrant_connector.search("test query", collection_name=nonexistent_collection)
 
     # Verify results
     assert len(results) == 0
@@ -240,9 +228,7 @@ async def test_nonexistent_collection_search(qdrant_connector):
 @pytest.mark.asyncio
 async def test_search_with_limit(qdrant_connector):
     """Test that num_results (limit) is respected."""
-    entries = [
-        Entry(content=f"Result number {i}", metadata={"index": i}) for i in range(5)
-    ]
+    entries = [Entry(content=f"Result number {i}", metadata={"index": i}) for i in range(5)]
     for entry in entries:
         await qdrant_connector.store(entry)
 
@@ -253,16 +239,12 @@ async def test_search_with_limit(qdrant_connector):
 @pytest.mark.asyncio
 async def test_search_with_offset_pagination(qdrant_connector):
     """Test that offset skips the expected number of results."""
-    entries = [
-        Entry(content=f"Paginated entry {i}", metadata={"index": i}) for i in range(5)
-    ]
+    entries = [Entry(content=f"Paginated entry {i}", metadata={"index": i}) for i in range(5)]
     for entry in entries:
         await qdrant_connector.store(entry)
 
     all_results = await qdrant_connector.search("paginated entry", limit=5)
-    paginated_results = await qdrant_connector.search(
-        "paginated entry", limit=5, offset=2
-    )
+    paginated_results = await qdrant_connector.search("paginated entry", limit=5, offset=2)
 
     # With offset=2 we should get at most 3 results from the original 5
     assert len(paginated_results) <= len(all_results)
@@ -320,9 +302,7 @@ async def test_search_with_source_path_filter(qdrant_connector):
             )
         ]
     )
-    results = await qdrant_connector.search(
-        "document topics", query_filter=source_filter
-    )
+    results = await qdrant_connector.search("document topics", query_filter=source_filter)
 
     matching = [r for r in results if "alpha" in r.content.lower()]
     non_matching = [r for r in results if "beta" in r.content.lower()]

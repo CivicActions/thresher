@@ -93,23 +93,25 @@ class TestCollectionConfig:
             CollectionConfig(name="bad", model="m", vector_name="v", vector_size=0)
 
     def test_qdrant_settings_with_collections(self):
-        settings = QdrantSettings.model_validate({
-            "collections": [
-                {
-                    "name": "vista",
-                    "model": "nomic-ai/nomic-embed-text-v1.5",
-                    "vector_name": "nomic-v1.5",
-                    "vector_size": 768,
-                    "query_prefix": "search_query: ",
-                },
-                {
-                    "name": "vista-source",
-                    "model": "jinaai/jina-embeddings-v2-base-code",
-                    "vector_name": "jina-code-v2",
-                    "vector_size": 768,
-                },
-            ]
-        })
+        settings = QdrantSettings.model_validate(
+            {
+                "collections": [
+                    {
+                        "name": "vista",
+                        "model": "nomic-ai/nomic-embed-text-v1.5",
+                        "vector_name": "nomic-v1.5",
+                        "vector_size": 768,
+                        "query_prefix": "search_query: ",
+                    },
+                    {
+                        "name": "vista-source",
+                        "model": "jinaai/jina-embeddings-v2-base-code",
+                        "vector_name": "jina-code-v2",
+                        "vector_size": 768,
+                    },
+                ]
+            }
+        )
         assert len(settings.collections) == 2
         assert settings.collections[0].name == "vista"
         assert settings.collections[1].name == "vista-source"

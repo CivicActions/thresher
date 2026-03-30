@@ -15,11 +15,7 @@ from mcp_server_qdrant.embeddings.factory import (
     create_embedding_provider,
 )
 from mcp_server_qdrant.qdrant import ArbitraryFilter, Entry, QdrantConnector
-from mcp_server_qdrant.settings import (
-    EmbeddingProviderSettings,
-    QdrantSettings,
-    ToolSettings,
-)
+from mcp_server_qdrant.settings import EmbeddingProviderSettings, QdrantSettings, ToolSettings
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +55,7 @@ class QdrantMCPServer(FastMCP):
 
         if embedding_provider_settings:
             self.embedding_provider_settings = embedding_provider_settings
-            self.embedding_provider = create_embedding_provider(
-                embedding_provider_settings
-            )
+            self.embedding_provider = create_embedding_provider(embedding_provider_settings)
         else:
             self.embedding_provider_settings = None
             self.embedding_provider = embedding_provider
@@ -105,9 +99,7 @@ class QdrantMCPServer(FastMCP):
         async def find(
             ctx: Context,
             query: Annotated[str, Field(description="What to search for")],
-            collection_name: Annotated[
-                str, Field(description="The collection to search in")
-            ],
+            collection_name: Annotated[str, Field(description="The collection to search in")],
             num_results: Annotated[
                 int | None,
                 Field(
@@ -205,9 +197,7 @@ class QdrantMCPServer(FastMCP):
 
         find_foo = find
 
-        filterable_conditions = (
-            self.qdrant_settings.filterable_fields_dict_with_conditions()
-        )
+        filterable_conditions = self.qdrant_settings.filterable_fields_dict_with_conditions()
 
         if len(filterable_conditions) > 0:
             find_foo = wrap_filters(find_foo, filterable_conditions)

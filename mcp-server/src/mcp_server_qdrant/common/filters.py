@@ -41,9 +41,7 @@ def make_filter(
                 )
             elif field.condition == "any":
                 must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, match=models.MatchAny(any=field_value)
-                    )
+                    models.FieldCondition(key=field_name, match=models.MatchAny(any=field_value))
                 )
             elif field.condition == "except":
                 must_conditions.append(
@@ -72,33 +70,23 @@ def make_filter(
                 )
             elif field.condition == ">":
                 must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(gt=field_value)
-                    )
+                    models.FieldCondition(key=field_name, range=models.Range(gt=field_value))
                 )
             elif field.condition == ">=":
                 must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(gte=field_value)
-                    )
+                    models.FieldCondition(key=field_name, range=models.Range(gte=field_value))
                 )
             elif field.condition == "<":
                 must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(lt=field_value)
-                    )
+                    models.FieldCondition(key=field_name, range=models.Range(lt=field_value))
                 )
             elif field.condition == "<=":
                 must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(lte=field_value)
-                    )
+                    models.FieldCondition(key=field_name, range=models.Range(lte=field_value))
                 )
             elif field.condition == "any":
                 must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, match=models.MatchAny(any=field_value)
-                    )
+                    models.FieldCondition(key=field_name, match=models.MatchAny(any=field_value))
                 )
             elif field.condition == "except":
                 must_conditions.append(
@@ -116,27 +104,19 @@ def make_filter(
             # For float values, we only support range comparisons
             if field.condition == ">":
                 must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(gt=field_value)
-                    )
+                    models.FieldCondition(key=field_name, range=models.Range(gt=field_value))
                 )
             elif field.condition == ">=":
                 must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(gte=field_value)
-                    )
+                    models.FieldCondition(key=field_name, range=models.Range(gte=field_value))
                 )
             elif field.condition == "<":
                 must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(lt=field_value)
-                    )
+                    models.FieldCondition(key=field_name, range=models.Range(lt=field_value))
                 )
             elif field.condition == "<=":
                 must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(lte=field_value)
-                    )
+                    models.FieldCondition(key=field_name, range=models.Range(lte=field_value))
                 )
             elif field.condition is not None:
                 raise ValueError(
@@ -163,13 +143,9 @@ def make_filter(
                 )
 
         else:
-            raise ValueError(
-                f"Unsupported field type {field.field_type} for field {field_name}"
-            )
+            raise ValueError(f"Unsupported field type {field.field_type} for field {field_name}")
 
-    return models.Filter(
-        must=must_conditions, must_not=must_not_conditions
-    ).model_dump()
+    return models.Filter(must=must_conditions, must_not=must_not_conditions).model_dump()
 
 
 def make_indexes(
@@ -187,8 +163,6 @@ def make_indexes(
         elif field.field_type == "boolean":
             indexes[f"{METADATA_PATH}.{field_name}"] = models.PayloadSchemaType.BOOL
         else:
-            raise ValueError(
-                f"Unsupported field type {field.field_type} for field {field_name}"
-            )
+            raise ValueError(f"Unsupported field type {field.field_type} for field {field_name}")
 
     return indexes

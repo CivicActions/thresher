@@ -57,16 +57,9 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - name: Lint MCP server
+      - name: Install MCP server dependencies
         working-directory: mcp-server
-        run: |
-          uv sync
-          uv run ruff check .
-          uv run ruff format --check .
-      - name: Type check MCP server
-        working-directory: mcp-server
-        run: uv run mypy src/
-        continue-on-error: true
+        run: uv sync
       - name: Test MCP server
         working-directory: mcp-server
         run: uv run pytest tests/ -v

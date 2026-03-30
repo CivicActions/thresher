@@ -82,10 +82,22 @@ class TestEmbedTexts:
 # ---------------------------------------------------------------------------
 
 
-def _make_model_config(**kwargs) -> EmbeddingModelConfig:
-    defaults = dict(model="m1", vector_size=3, vector_name="vec1")
-    defaults.update(kwargs)
-    return EmbeddingModelConfig(**defaults)
+def _make_model_config(
+    model: str = "m1",
+    vector_size: int = 3,
+    vector_name: str = "vec1",
+    max_tokens: int = 512,
+    index_prefix: str = "",
+    query_prefix: str = "",
+) -> EmbeddingModelConfig:
+    return EmbeddingModelConfig(
+        model=model,
+        vector_size=vector_size,
+        vector_name=vector_name,
+        max_tokens=max_tokens,
+        index_prefix=index_prefix,
+        query_prefix=query_prefix,
+    )
 
 
 def _two_model_configs() -> dict[str, EmbeddingModelConfig]:
@@ -98,6 +110,7 @@ def _two_model_configs() -> dict[str, EmbeddingModelConfig]:
 class TestMultiModelEmbedderInit:
     def test_raises_on_empty_models(self) -> None:
         import pytest
+
         with pytest.raises(ValueError, match="at least one"):
             MultiModelEmbedder({})
 
@@ -114,6 +127,7 @@ class TestMultiModelEmbedderInit:
 
     def test_get_model_config_raises_on_unknown(self) -> None:
         import pytest
+
         embedder = MultiModelEmbedder(_two_model_configs())
         with pytest.raises(KeyError):
             embedder.get_model_config("nonexistent")
@@ -127,6 +141,7 @@ class TestMultiModelEmbedderEmbedTexts:
 
     def test_unknown_model_raises_key_error(self) -> None:
         import pytest
+
         embedder = MultiModelEmbedder(_two_model_configs())
         with pytest.raises(KeyError):
             embedder.embed_texts(["hello"], "nonexistent")
@@ -223,6 +238,7 @@ class TestMultiModelEmbedderPreload:
 
     def test_preload_unknown_model_raises_key_error(self) -> None:
         import pytest
+
         embedder = MultiModelEmbedder(_two_model_configs())
         with pytest.raises(KeyError):
             embedder.preload("nonexistent")

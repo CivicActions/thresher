@@ -462,9 +462,7 @@ class TestMultiModelEmbeddingConfig:
         merged = {
             "embedding": {
                 "default": "nonexistent",
-                "models": {
-                    "docs": {"model": "m", "vector_size": 768, "vector_name": "v"}
-                },
+                "models": {"docs": {"model": "m", "vector_size": 768, "vector_name": "v"}},
             }
         }
         errors = validate_config(merged)
@@ -476,15 +474,9 @@ class TestMultiModelEmbeddingConfig:
         merged = {
             "embedding": {
                 "default": "docs",
-                "models": {
-                    "docs": {"model": "m", "vector_size": 768, "vector_name": "v"}
-                },
+                "models": {"docs": {"model": "m", "vector_size": 768, "vector_name": "v"}},
             },
-            "routing": {
-                "rules": [
-                    {"collection": "col", "embedding": "bad-model"}
-                ]
-            },
+            "routing": {"rules": [{"collection": "col", "embedding": "bad-model"}]},
         }
         errors = validate_config(merged)
         assert any("bad-model" in e for e in errors)

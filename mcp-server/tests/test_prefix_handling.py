@@ -48,9 +48,9 @@ class TestFastEmbedProviderPrefixes:
         from mcp_server_qdrant.embeddings.fastembed import FastEmbedProvider
 
         mock_model = MagicMock()
-        mock_model.passage_embed.return_value = iter([
-            np.array([0.1, 0.2, 0.3]), np.array([0.4, 0.5, 0.6])
-        ])
+        mock_model.passage_embed.return_value = iter(
+            [np.array([0.1, 0.2, 0.3]), np.array([0.4, 0.5, 0.6])]
+        )
         mock_cls.return_value = mock_model
 
         provider = FastEmbedProvider("nomic/text", index_prefix="search_document: ")

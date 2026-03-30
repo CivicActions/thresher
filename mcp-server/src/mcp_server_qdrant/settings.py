@@ -56,20 +56,17 @@ class FilterableField(BaseModel):
     field_type: Literal["keyword", "integer", "float", "boolean"] = Field(
         description="The type of the field"
     )
-    condition: Literal["==", "!=", ">", ">=", "<", "<=", "any", "except"] | None = (
-        Field(
-            default=None,
-            description=(
-                "The condition to use for the filter. If not provided, the field will be"
-                " indexed, but no filter argument will be exposed to MCP tool."
-            ),
-        )
+    condition: Literal["==", "!=", ">", ">=", "<", "<=", "any", "except"] | None = Field(
+        default=None,
+        description=(
+            "The condition to use for the filter. If not provided, the field will be"
+            " indexed, but no filter argument will be exposed to MCP tool."
+        ),
     )
     required: bool = Field(
         default=False,
         description="Whether the field is required for the filter.",
     )
-
 
 
 class CollectionConfig(BaseModel):
@@ -82,6 +79,7 @@ class CollectionConfig(BaseModel):
     index_prefix: str = Field(default="", description="Prefix prepended to texts at indexing time")
     query_prefix: str = Field(default="", description="Prefix prepended to query texts")
 
+
 class QdrantSettings(BaseSettings):
     """
     Configuration for the Qdrant connector.
@@ -89,9 +87,7 @@ class QdrantSettings(BaseSettings):
 
     location: str | None = Field(default=None, validation_alias="QDRANT_URL")
     api_key: str | None = Field(default=None, validation_alias="QDRANT_API_KEY")
-    collection_name: str | None = Field(
-        default=None, validation_alias="COLLECTION_NAME"
-    )
+    collection_name: str | None = Field(default=None, validation_alias="COLLECTION_NAME")
     local_path: str | None = Field(default=None, validation_alias="QDRANT_LOCAL_PATH")
     search_limit: int = Field(default=10, validation_alias="QDRANT_SEARCH_LIMIT")
     search_limit_max: int | None = Field(
@@ -126,16 +122,12 @@ class QdrantSettings(BaseSettings):
         if self.filterable_fields is None:
             return {}
         return {
-            field.name: field
-            for field in self.filterable_fields
-            if field.condition is not None
+            field.name: field for field in self.filterable_fields if field.condition is not None
         }
 
     @model_validator(mode="after")
     def check_local_path_conflict(self) -> "QdrantSettings":
         if self.local_path:
             if self.location is not None or self.api_key is not None:
-                raise ValueError(
-                    "If 'local_path' is set, 'location' and 'api_key' must be None."
-                )
+                raise ValueError("If 'local_path' is set, 'location' and 'api_key' must be None.")
         return self
