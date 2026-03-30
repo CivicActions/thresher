@@ -65,10 +65,10 @@ def wrap_filters(
                     f'Only "keyword" and "integer" types are supported'
                     f' for "{field.condition}" condition'
                 )
-            field_type = list[field_type]
+            field_type = list[field_type]  # type: ignore[valid-type]
 
         if field.required:
-            annotation = Annotated[field_type, Field(description=field.description)]
+            annotation = Annotated[field_type, Field(description=field.description)]  # type: ignore[valid-type]
             parameter = inspect.Parameter(
                 name=field_name,
                 kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
@@ -76,7 +76,7 @@ def wrap_filters(
             )
             required_new_params.append(parameter)
         else:
-            annotation = Annotated[Optional[field_type], Field(description=field.description)]
+            annotation = Annotated[Optional[field_type], Field(description=field.description)]  # type: ignore[valid-type, misc]
             parameter = inspect.Parameter(
                 name=field_name,
                 kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,

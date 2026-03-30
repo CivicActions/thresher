@@ -15,7 +15,11 @@ from mcp_server_qdrant.embeddings.factory import (
     create_embedding_provider,
 )
 from mcp_server_qdrant.qdrant import ArbitraryFilter, Entry, QdrantConnector
-from mcp_server_qdrant.settings import EmbeddingProviderSettings, QdrantSettings, ToolSettings
+from mcp_server_qdrant.settings import (
+    EmbeddingProviderSettings,
+    QdrantSettings,
+    ToolSettings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +164,7 @@ class QdrantMCPServer(FastMCP):
                 if base_filter is not None:
                     existing_must = list(base_filter.must or [])
                     base_filter = models.Filter(
-                        must=existing_must + [source_condition],
+                        must=existing_must + [source_condition],  # type: ignore[arg-type]
                         must_not=base_filter.must_not,
                         should=base_filter.should,
                     )

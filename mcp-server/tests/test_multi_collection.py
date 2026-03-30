@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from mcp_server_qdrant.embeddings.factory import create_collection_providers
 from mcp_server_qdrant.settings import CollectionConfig
 

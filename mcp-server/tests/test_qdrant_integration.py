@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+
 from mcp_server_qdrant.embeddings.fastembed import FastEmbedProvider
 from mcp_server_qdrant.qdrant import Entry, QdrantConnector
 
