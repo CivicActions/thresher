@@ -14,10 +14,17 @@ class FastEmbedProvider(EmbeddingProvider):
     :param query_prefix: Prefix prepended to query text during search (embed_query).
     """
 
-    def __init__(self, model_name: str, index_prefix: str = "", query_prefix: str = ""):
+    def __init__(
+        self,
+        model_name: str,
+        index_prefix: str = "",
+        query_prefix: str = "",
+        vector_name: str | None = None,
+    ):
         self.model_name = model_name
         self.index_prefix = index_prefix
         self.query_prefix = query_prefix
+        self._vector_name_override = vector_name
         self.embedding_model = TextEmbedding(model_name)
 
     async def embed_documents(self, documents: list[str]) -> list[list[float]]:
@@ -45,8 +52,12 @@ class FastEmbedProvider(EmbeddingProvider):
     def get_vector_name(self) -> str:
         """
         Return the name of the vector for the Qdrant collection.
-        Important: This is compatible with the FastEmbed logic used before 0.6.0.
+        If a vector_name override was provided at construction, use it.
+        Otherwise fall back to the FastEmbed convention (``fast-{model}``)
+        for backward compatibility with collections created before 0.6.0.
         """
+        if self._vector_name_override:
+            return self._vector_name_override
         model_name = self.embedding_model.model_name.split("/")[-1].lower()
         return f"fast-{model_name}"
 

@@ -37,17 +37,19 @@ def create_collection_providers(
     """
     from mcp_server_qdrant.embeddings.fastembed import FastEmbedProvider
 
-    # Cache providers by (model, index_prefix, query_prefix) to avoid loading the same model twice
-    provider_cache: dict[tuple[str, str, str], EmbeddingProvider] = {}
+    # Cache providers by (model, index_prefix, query_prefix, vector_name) to avoid loading twice
+    provider_cache: dict[tuple[str, str, str, str], EmbeddingProvider] = {}
     providers: dict[str, EmbeddingProvider] = {}
 
     for col in collections:
-        key = (col.model, col.index_prefix, col.query_prefix)
+        vector_name = col.vector_name if col.vector_name else None
+        key = (col.model, col.index_prefix, col.query_prefix, vector_name or "")
         if key not in provider_cache:
             provider_cache[key] = FastEmbedProvider(
                 col.model,
                 index_prefix=col.index_prefix,
                 query_prefix=col.query_prefix,
+                vector_name=vector_name,
             )
         providers[col.name] = provider_cache[key]
 
