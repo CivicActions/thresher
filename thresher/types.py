@@ -97,6 +97,7 @@ class QueueBatch:
     items: list[QueueItem]
     claimed_at: float | None = None
     runner_id: str | None = None
+    reclaim_count: int = 0
 
 
 class ProcessingStatus(str, Enum):

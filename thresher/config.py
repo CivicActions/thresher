@@ -57,6 +57,7 @@ class RoutingConfig:
 class QueueConfig:
     batch_size: int = 1000
     lease_timeout: int = 600
+    max_reclaims: int = 1
 
 
 @dataclass
@@ -362,6 +363,9 @@ def _build_config(raw: dict[str, Any]) -> Config:
             ),
             lease_timeout=int(
                 queue_raw.get("lease_timeout", 600) if isinstance(queue_raw, dict) else 600
+            ),
+            max_reclaims=int(
+                queue_raw.get("max_reclaims", 1) if isinstance(queue_raw, dict) else 1
             ),
         ),
         processing=ProcessingConfig(

@@ -77,6 +77,7 @@ def _make_batch(
     items: list[QueueItem] | None = None,
     claimed_at: float | None = None,
     runner_id: str | None = None,
+    reclaim_count: int = 0,
 ) -> QueueBatch:
     if items is None:
         items = [QueueItem(path="file1.m", source_type="direct")]
@@ -87,6 +88,7 @@ def _make_batch(
         items=items,
         claimed_at=claimed_at,
         runner_id=runner_id,
+        reclaim_count=reclaim_count,
     )
 
 
@@ -385,6 +387,48 @@ class TestStaleBatchReclaim:
         assert written_batch.items[0].status == "pending"
         # "complete" items should stay "complete"
         assert written_batch.items[1].status == "complete"
+
+    def test_repeatedly_reclaimed_batch_moved_to_retry(
+        self,
+        mock_source: MagicMock,
+        mock_destination: MagicMock,
+        mock_embedder: MagicMock,
+        config: Config,
+    ) -> None:
+        """Batch reclaimed more than max_reclaims times goes to retry/ not pending/."""
+        # Already reclaimed once (reclaim_count=1), max_reclaims defaults to 1
+        stale_batch = _make_batch(
+            claimed_at=time.time() - 1000,
+            runner_id="runner-oom",
+            reclaim_count=1,
+            items=[
+                QueueItem(path="big_file.pdf", source_type="direct", status="processing"),
+            ],
+        )
+        stale_json = _serialize_batch(stale_batch).encode("utf-8")
+
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(
+                    path="queue/claimed/runner-oom/batch-0001.json",
+                    size=100,
+                    updated=datetime.now(),
+                ),
+            ]
+        )
+        mock_source.download_content.return_value = stale_json
+
+        loop = _make_loop(mock_source, mock_destination, mock_embedder, config)
+        reclaimed = loop.reclaim_stale_batches("queue/")
+
+        assert reclaimed == 1
+        # Should upload to retry/, NOT pending/
+        retry_calls = [c for c in mock_source.upload_content.call_args_list if "retry/" in str(c)]
+        pending_calls = [
+            c for c in mock_source.upload_content.call_args_list if "pending/" in str(c)
+        ]
+        assert len(retry_calls) == 1
+        assert len(pending_calls) == 0
 
 
 # ---------------------------------------------------------------------------

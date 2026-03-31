@@ -255,6 +255,12 @@
           "minimum": 1,
           "description": "Seconds before stale claim is reclaimed.",
           "default": 600
+        },
+        "max_reclaims": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Max times a stale batch is returned to pending before moving to retry.",
+          "default": 1
         }
       }
     },

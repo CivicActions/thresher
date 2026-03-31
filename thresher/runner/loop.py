@@ -87,10 +87,15 @@ class RunnerLoop:
     # -- stale batch reclaim (T027) -----------------------------------------
 
     def reclaim_stale_batches(self, queue_prefix: str) -> int:
-        """Move stale claimed batches back to pending. Returns count reclaimed."""
+        """Move stale claimed batches back to pending (or retry if repeated).
+
+        Batches that have been reclaimed more than once are moved to retry/
+        instead of pending/, preventing OOM-inducing batches from looping.
+        """
         claimed_prefix = f"{queue_prefix}claimed/"
         now = time.time()
         lease_timeout = self.config.queue.lease_timeout
+        max_reclaims = self.config.queue.max_reclaims
         reclaimed = 0
 
         for file_info in self.source.list_files(prefix=claimed_prefix):
@@ -102,6 +107,8 @@ class RunnerLoop:
                 if claimed_at + lease_timeout >= now:
                     continue
 
+                batch.reclaim_count += 1
+
                 # Reset batch for re-processing
                 batch.claimed_at = None
                 batch.runner_id = None
@@ -109,10 +116,21 @@ class RunnerLoop:
                     if item.status == "processing":
                         item.status = "pending"
 
-                pending_path = f"{queue_prefix}pending/{batch.batch_id}.json"
-                pending_data = _serialize_batch(batch).encode("utf-8")
+                if batch.reclaim_count > max_reclaims:
+                    # Too many reclaims — move to retry for manual review
+                    dest_path = f"{queue_prefix}retry/{batch.batch_id}.json"
+                    logger.warning(
+                        "Batch %s reclaimed %d times (max %d), moving to retry",
+                        batch.batch_id,
+                        batch.reclaim_count,
+                        max_reclaims,
+                    )
+                else:
+                    dest_path = f"{queue_prefix}pending/{batch.batch_id}.json"
+
+                dest_data = _serialize_batch(batch).encode("utf-8")
                 try:
-                    self.source.upload_content(pending_path, pending_data, if_generation_match=0)
+                    self.source.upload_content(dest_path, dest_data, if_generation_match=0)
                 except FileExistsError:
                     # Another runner already reclaimed this batch
                     logger.debug("Batch %s already reclaimed by another runner", batch.batch_id)

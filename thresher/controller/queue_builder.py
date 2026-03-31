@@ -104,6 +104,8 @@ def _serialize_batch(batch: QueueBatch) -> str:
         data["claimed_at"] = batch.claimed_at
     if batch.runner_id is not None:
         data["runner_id"] = batch.runner_id
+    if batch.reclaim_count:
+        data["reclaim_count"] = batch.reclaim_count
     return json.dumps(data, indent=2)
 
 
@@ -131,4 +133,5 @@ def deserialize_batch(data: str) -> QueueBatch:
         items=items,
         claimed_at=raw.get("claimed_at"),
         runner_id=raw.get("runner_id"),
+        reclaim_count=raw.get("reclaim_count", 0),
     )
