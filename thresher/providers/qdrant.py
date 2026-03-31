@@ -12,6 +12,9 @@ from qdrant_client.http.models import (
     MatchValue,
     PayloadSchemaType,
     PointStruct,
+    TextIndexParams,
+    TextIndexType,
+    TokenizerType,
     VectorParams,
 )
 
@@ -65,7 +68,21 @@ class QdrantDestinationProvider:
                 field_schema=PayloadSchemaType.KEYWORD,
             )
         except Exception as e:
-            logger.warning("Payload index creation failed for '%s': %s", name, e)
+            logger.warning("Keyword index creation failed for '%s': %s", name, e)
+        # Add a text index on 'source' for partial path matching via MatchText.
+        try:
+            self._client.create_payload_index(
+                collection_name=name,
+                field_name="source",
+                field_schema=TextIndexParams(
+                    type=TextIndexType.TEXT,
+                    tokenizer=TokenizerType.WORD,
+                    min_token_len=1,
+                    lowercase=True,
+                ),
+            )
+        except Exception as e:
+            logger.warning("Text index creation failed for '%s': %s", name, e)
 
     def index_chunks(self, collection: str, chunks: list[IndexChunk]) -> None:
         if not chunks:

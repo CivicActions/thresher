@@ -8,6 +8,9 @@ import pytest
 from qdrant_client.http.models import (
     Distance,
     PayloadSchemaType,
+    TextIndexParams,
+    TextIndexType,
+    TokenizerType,
     VectorParams,
 )
 
@@ -54,11 +57,22 @@ class TestEnsureCollection:
                 ),
             },
         )
-        mock_client.create_payload_index.assert_called_once_with(
+        mock_client.create_payload_index.assert_any_call(
             collection_name="docs",
             field_name="source",
             field_schema=PayloadSchemaType.KEYWORD,
         )
+        mock_client.create_payload_index.assert_any_call(
+            collection_name="docs",
+            field_name="source",
+            field_schema=TextIndexParams(
+                type=TextIndexType.TEXT,
+                tokenizer=TokenizerType.WORD,
+                min_token_len=1,
+                lowercase=True,
+            ),
+        )
+        assert mock_client.create_payload_index.call_count == 2
 
     def test_skips_when_exists(self, mock_qdrant):
         provider, mock_client = mock_qdrant

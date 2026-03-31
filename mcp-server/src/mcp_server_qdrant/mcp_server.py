@@ -138,8 +138,11 @@ class QdrantMCPServer(FastMCP):
                 str | None,
                 Field(
                     description=(
-                        "Filter by the top-level 'source' payload field (exact match)."
-                        " Use a thresher source path, e.g. 'gs://bucket/file.pdf'."
+                        "Filter results by source path. Supports partial path matching: "
+                        "provide a full file path for exact results, or a partial path "
+                        "(e.g. directory name, file extension) to match all files "
+                        "containing those path segments. Requires a text index on the "
+                        "'source' field; falls back to exact match if unavailable."
                     ),
                     default=None,
                 ),
@@ -155,7 +158,7 @@ class QdrantMCPServer(FastMCP):
             :param num_results: Maximum number of results to return. Capped by server max if
                                 configured.
             :param offset: Number of results to skip for pagination.
-            :param source_path: Filter to entries matching this source path exactly.
+            :param source_path: Filter to entries whose source path contains these segments.
             :param query_filter: Additional arbitrary filter to apply to the query.
             :return: A list of entries found or None.
             """
@@ -165,11 +168,13 @@ class QdrantMCPServer(FastMCP):
 
             base_filter = models.Filter(**query_filter) if query_filter else None
 
-            # Merge source_path into the filter when provided
+            # Merge source_path into the filter when provided.
+            # Use MatchText (full-text token search) for partial path matching.
+            # Falls back to MatchValue (exact) if MatchText fails (no text index).
             if source_path is not None:
                 source_condition = models.FieldCondition(
                     key="source",
-                    match=models.MatchValue(value=source_path),
+                    match=models.MatchText(text=source_path),
                 )
                 if base_filter is not None:
                     existing_must = list(base_filter.must or [])
