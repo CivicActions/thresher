@@ -51,6 +51,8 @@ class RunnerLoop:
 
         self.results: list[ProcessingResult] = []
         self._memory_exceeded = False
+        self._last_reclaim_time: float = 0.0
+        self._reclaim_interval: float = 300.0  # seconds between stale-batch scans
 
     def run(self) -> list[ProcessingResult]:
         """Run the main processing loop until no more batches available."""
@@ -59,8 +61,11 @@ class RunnerLoop:
         logger.info("Runner %s starting", self.runner_id)
 
         while not self._memory_exceeded:
-            # Reclaim stale batches before trying to claim a new one
-            self.reclaim_stale_batches(queue_prefix)
+            # Reclaim stale batches periodically, not every iteration
+            now = time.time()
+            if now - self._last_reclaim_time >= self._reclaim_interval:
+                self.reclaim_stale_batches(queue_prefix)
+                self._last_reclaim_time = now
 
             batch_path = self._claim_next_batch(queue_prefix)
             if batch_path is None:
@@ -106,7 +111,12 @@ class RunnerLoop:
 
                 pending_path = f"{queue_prefix}pending/{batch.batch_id}.json"
                 pending_data = _serialize_batch(batch).encode("utf-8")
-                self.source.upload_content(pending_path, pending_data)
+                try:
+                    self.source.upload_content(pending_path, pending_data, if_generation_match=0)
+                except FileExistsError:
+                    # Another runner already reclaimed this batch
+                    logger.debug("Batch %s already reclaimed by another runner", batch.batch_id)
+                    continue
                 self.source.delete(file_info.path)
 
                 reclaimed += 1
