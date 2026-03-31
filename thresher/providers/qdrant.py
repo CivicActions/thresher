@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import time
+from typing import Any, Callable
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
@@ -21,6 +23,10 @@ from qdrant_client.http.models import (
 from thresher.types import IndexChunk
 
 logger = logging.getLogger("thresher.providers.qdrant")
+
+# Retry config for transient Qdrant errors (timeouts, connection resets)
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 2.0  # seconds; doubles each retry
 
 
 class QdrantDestinationProvider:
@@ -41,6 +47,26 @@ class QdrantDestinationProvider:
         )
         self.batch_size = batch_size
         self.vector_name = vector_name
+
+    def _retry(self, operation: str, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        """Call *fn* with retry and exponential backoff on transient errors."""
+        for attempt in range(_MAX_RETRIES):
+            try:
+                return fn(*args, **kwargs)
+            except Exception as exc:
+                if attempt == _MAX_RETRIES - 1:
+                    raise
+                delay = _RETRY_BASE_DELAY * (2**attempt)
+                logger.warning(
+                    "Qdrant %s failed (attempt %d/%d), retrying in %.1fs: %s",
+                    operation,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                    exc,
+                )
+                time.sleep(delay)
+        raise RuntimeError("unreachable")  # pragma: no cover
 
     def ensure_collection(self, name: str, vector_size: int, vector_name: str) -> None:
         if self._client.collection_exists(name):
@@ -97,10 +123,12 @@ class QdrantDestinationProvider:
         ]
         for i in range(0, len(points), self.batch_size):
             batch = points[i : i + self.batch_size]
-            self._client.upsert(collection_name=collection, points=batch)
+            self._retry("upsert", self._client.upsert, collection_name=collection, points=batch)
 
     def exists_by_hash(self, collection: str, source_path: str, content_hash: str) -> bool:
-        results = self._client.scroll(
+        results = self._retry(
+            "scroll",
+            self._client.scroll,
             collection_name=collection,
             scroll_filter=Filter(
                 must=[
