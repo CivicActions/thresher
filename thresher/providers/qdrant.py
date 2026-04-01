@@ -69,7 +69,7 @@ class QdrantDestinationProvider:
         raise RuntimeError("unreachable")  # pragma: no cover
 
     def ensure_collection(self, name: str, vector_size: int, vector_name: str) -> None:
-        if self._client.collection_exists(name):
+        if self._retry("collection_exists", self._client.collection_exists, name):
             return
         logger.info(
             "Creating collection: %s (vector_size=%d, vector_name=%s)",
@@ -77,7 +77,9 @@ class QdrantDestinationProvider:
             vector_size,
             vector_name,
         )
-        self._client.create_collection(
+        self._retry(
+            "create_collection",
+            self._client.create_collection,
             collection_name=name,
             vectors_config={
                 vector_name: VectorParams(
@@ -88,7 +90,9 @@ class QdrantDestinationProvider:
         )
         # Index the 'source' payload field for fast filter-based deletes and lookups.
         try:
-            self._client.create_payload_index(
+            self._retry(
+                "create_payload_index",
+                self._client.create_payload_index,
                 collection_name=name,
                 field_name="source",
                 field_schema=PayloadSchemaType.KEYWORD,
@@ -97,7 +101,9 @@ class QdrantDestinationProvider:
             logger.warning("Keyword index creation failed for '%s': %s", name, e)
         # Add a text index on 'source' for partial path matching via MatchText.
         try:
-            self._client.create_payload_index(
+            self._retry(
+                "create_payload_index",
+                self._client.create_payload_index,
                 collection_name=name,
                 field_name="source",
                 field_schema=TextIndexParams(
@@ -142,7 +148,9 @@ class QdrantDestinationProvider:
         return len(points) > 0
 
     def delete_by_source(self, collection: str, source_path: str) -> None:
-        self._client.delete(
+        self._retry(
+            "delete",
+            self._client.delete,
             collection_name=collection,
             points_selector=Filter(
                 must=[
