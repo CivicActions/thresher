@@ -53,6 +53,8 @@ class RunnerLoop:
         self._memory_exceeded = False
         self._last_reclaim_time: float = 0.0
         self._reclaim_interval: float = 300.0  # seconds between stale-batch scans
+        self._claim_retries: int = 3  # retries before concluding no batches left
+        self._claim_backoff: float = 10.0  # seconds between claim retries
 
     def run(self) -> list[ProcessingResult]:
         """Run the main processing loop until no more batches available."""
@@ -67,9 +69,9 @@ class RunnerLoop:
                 self.reclaim_stale_batches(queue_prefix)
                 self._last_reclaim_time = now
 
-            batch_path = self._claim_next_batch(queue_prefix)
+            batch_path = self._claim_with_retry(queue_prefix)
             if batch_path is None:
-                logger.info("No more batches available")
+                logger.info("No more batches available after retries")
                 break
 
             self._process_batch(batch_path, queue_prefix)
@@ -145,6 +147,23 @@ class RunnerLoop:
         return reclaimed
 
     # -- claiming -----------------------------------------------------------
+
+    def _claim_with_retry(self, queue_prefix: str) -> str | None:
+        """Try to claim a batch, retrying with backoff under contention."""
+        for attempt in range(self._claim_retries):
+            result = self._claim_next_batch(queue_prefix)
+            if result is not None:
+                return result
+            if attempt < self._claim_retries - 1:
+                backoff = self._claim_backoff * (attempt + 1) + random.uniform(0, 5)
+                logger.info(
+                    "No batch claimed (attempt %d/%d), retrying in %.0fs",
+                    attempt + 1,
+                    self._claim_retries,
+                    backoff,
+                )
+                time.sleep(backoff)
+        return None
 
     def _claim_next_batch(self, queue_prefix: str) -> str | None:
         """Try to claim a pending batch via atomic conditional create."""
