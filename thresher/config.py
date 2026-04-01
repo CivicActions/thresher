@@ -119,6 +119,7 @@ class K8sConfig:
     ttl_seconds_after_finished: int = 3600
     config_configmap: str = ""
     credentials_secret: str = ""
+    env_secrets: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -466,6 +467,7 @@ def _build_config(raw: dict[str, Any]) -> Config:
             credentials_secret=str(
                 k8s_raw.get("credentials_secret", "") if isinstance(k8s_raw, dict) else ""
             ),
+            env_secrets=(k8s_raw.get("env_secrets", {}) if isinstance(k8s_raw, dict) else {}),
         ),
         url_resolvers=parse_url_resolvers(raw.get("url_resolvers")),
     )

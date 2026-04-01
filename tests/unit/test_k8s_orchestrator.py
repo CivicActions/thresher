@@ -723,3 +723,172 @@ class TestSanitizeK8sLabel:
     def test_truncates_to_63_chars(self):
         result = _sanitize_k8s_label("a" * 100)
         assert len(result) <= 63
+
+
+class TestEnvSecrets:
+    """Tests for env_secrets secretKeyRef injection and validation."""
+
+    def test_secret_ref_produces_secret_key_ref(self, monkeypatch):
+        """When env_secrets is configured, Job specs use secretKeyRef."""
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(
+            image="test:v1",
+            namespace="ns",
+            env_secrets={
+                "QDRANT_API_KEY": {"secret": "qdrant-creds", "key": "api-key"},
+                "GCS_BUCKET": {"secret": "gcs-config", "key": "bucket"},
+            },
+        )
+        orch = K8sOrchestrator(config, ["batch-001"])
+        specs = orch.build_job_specs()
+
+        env_list = specs[0]["spec"]["template"]["spec"]["containers"][0]["env"]
+        qdrant_env = next(e for e in env_list if e["name"] == "QDRANT_API_KEY")
+        assert "valueFrom" in qdrant_env
+        assert qdrant_env["valueFrom"]["secretKeyRef"]["name"] == "qdrant-creds"
+        assert qdrant_env["valueFrom"]["secretKeyRef"]["key"] == "api-key"
+
+        gcs_env = next(e for e in env_list if e["name"] == "GCS_BUCKET")
+        assert gcs_env["valueFrom"]["secretKeyRef"]["name"] == "gcs-config"
+
+        # QDRANT_URL not in env_secrets and not in env — should be absent
+        qdrant_url_envs = [e for e in env_list if e["name"] == "QDRANT_URL"]
+        assert qdrant_url_envs == []
+
+    def test_plaintext_fallback_when_no_secret_ref(self, monkeypatch):
+        """Env vars without secret refs fall back to os.environ plaintext."""
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.setenv("GCS_BUCKET", "my-bucket")
+        monkeypatch.setenv("QDRANT_URL", "http://qdrant:6333")
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(
+            image="test:v1",
+            namespace="ns",
+            env_secrets={
+                "QDRANT_API_KEY": {"secret": "qdrant-creds", "key": "api-key"},
+            },
+        )
+        orch = K8sOrchestrator(config, ["batch-001"])
+        specs = orch.build_job_specs()
+
+        env_list = specs[0]["spec"]["template"]["spec"]["containers"][0]["env"]
+
+        # QDRANT_API_KEY: secretKeyRef
+        api_env = next(e for e in env_list if e["name"] == "QDRANT_API_KEY")
+        assert "valueFrom" in api_env
+
+        # GCS_BUCKET: plaintext fallback from env
+        gcs_env = next(e for e in env_list if e["name"] == "GCS_BUCKET")
+        assert gcs_env["value"] == "my-bucket"
+        assert "valueFrom" not in gcs_env
+
+        # QDRANT_URL: plaintext fallback from env
+        url_env = next(e for e in env_list if e["name"] == "QDRANT_URL")
+        assert url_env["value"] == "http://qdrant:6333"
+
+    def test_no_plaintext_api_key_in_spec(self, monkeypatch):
+        """API key must not appear as plaintext when secret ref is configured."""
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.setenv("QDRANT_API_KEY", "super-secret-key")
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+
+        config = _make_config(
+            image="test:v1",
+            namespace="ns",
+            env_secrets={
+                "QDRANT_API_KEY": {"secret": "qdrant-creds", "key": "api-key"},
+            },
+        )
+        orch = K8sOrchestrator(config, ["batch-001"])
+        specs = orch.build_job_specs()
+
+        env_list = specs[0]["spec"]["template"]["spec"]["containers"][0]["env"]
+        api_env = next(e for e in env_list if e["name"] == "QDRANT_API_KEY")
+        assert "value" not in api_env
+        assert api_env["valueFrom"]["secretKeyRef"]["name"] == "qdrant-creds"
+
+    def test_validate_env_config_missing_secret_name(self, monkeypatch):
+        """Validation catches missing 'secret' in env_secrets entry."""
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+
+        config = _make_config(
+            env_secrets={
+                "QDRANT_API_KEY": {"secret": "", "key": "api-key"},
+            },
+        )
+        orch = K8sOrchestrator(config, [])
+        errors = orch.validate_env_config()
+        assert any("QDRANT_API_KEY" in e and "secret" in e for e in errors)
+
+    def test_validate_env_config_missing_key(self, monkeypatch):
+        """Validation catches missing 'key' in env_secrets entry."""
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+
+        config = _make_config(
+            env_secrets={
+                "QDRANT_API_KEY": {"secret": "qdrant-creds", "key": ""},
+            },
+        )
+        orch = K8sOrchestrator(config, [])
+        errors = orch.validate_env_config()
+        assert any("QDRANT_API_KEY" in e and "key" in e for e in errors)
+
+    def test_validate_env_config_not_set_anywhere(self, monkeypatch):
+        """Validation warns when env var is neither in secrets nor environment."""
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(env_secrets={})
+        orch = K8sOrchestrator(config, [])
+        errors = orch.validate_env_config()
+        assert len(errors) == 3
+        assert any("GCS_BUCKET" in e for e in errors)
+        assert any("QDRANT_URL" in e for e in errors)
+        assert any("QDRANT_API_KEY" in e for e in errors)
+
+    def test_validate_env_config_all_valid(self, monkeypatch):
+        """No errors when all env vars are covered by secrets or env."""
+        monkeypatch.setenv("GCS_BUCKET", "my-bucket")
+
+        config = _make_config(
+            env_secrets={
+                "QDRANT_API_KEY": {"secret": "qdrant-creds", "key": "api-key"},
+                "QDRANT_URL": {"secret": "qdrant-creds", "key": "url"},
+            },
+        )
+        orch = K8sOrchestrator(config, [])
+        errors = orch.validate_env_config()
+        assert errors == []
+
+    def test_expander_specs_use_secret_ref(self, monkeypatch):
+        """Expansion job specs also use secretKeyRef."""
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+        config = _make_config(
+            image="test:v1",
+            namespace="ns",
+            env_secrets={
+                "QDRANT_API_KEY": {"secret": "qdrant-creds", "key": "api-key"},
+            },
+        )
+        orch = K8sOrchestrator(config, [])
+        specs = orch.build_expansion_job_specs(["source/test.zip"])
+
+        env_list = specs[0]["spec"]["template"]["spec"]["containers"][0]["env"]
+        api_env = next(e for e in env_list if e["name"] == "QDRANT_API_KEY")
+        assert "valueFrom" in api_env
+        assert api_env["valueFrom"]["secretKeyRef"]["name"] == "qdrant-creds"

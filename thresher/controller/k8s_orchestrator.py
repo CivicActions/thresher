@@ -43,10 +43,56 @@ def _sanitize_k8s_label(raw: str) -> str:
 class K8sOrchestrator:
     """Creates and manages runner K8s Jobs."""
 
+    # Environment variables that runners/expanders need for cloud services.
+    _CLOUD_ENV_VARS = ("GCS_BUCKET", "QDRANT_URL", "QDRANT_API_KEY")
+
     def __init__(self, config: Config, batch_ids: list[str]):
         self.config = config
         self.batch_ids = batch_ids
         self.k8s = config.kubernetes
+
+    def validate_env_config(self) -> list[str]:
+        """Validate that required env vars are available (secret ref or os.environ).
+
+        Returns a list of error messages (empty if valid).
+        """
+        errors: list[str] = []
+        for var in self._CLOUD_ENV_VARS:
+            ref = self.k8s.env_secrets.get(var)
+            if ref:
+                if not isinstance(ref, dict):
+                    errors.append(f"env_secrets.{var}: expected mapping with 'secret' and 'key'")
+                    continue
+                if not ref.get("secret"):
+                    errors.append(f"env_secrets.{var}: missing 'secret' name")
+                if not ref.get("key"):
+                    errors.append(f"env_secrets.{var}: missing 'key' name")
+            elif not os.environ.get(var):
+                errors.append(f"{var}: not configured in env_secrets and not set in environment")
+        return errors
+
+    def _build_env_vars(self) -> list[dict[str, Any]]:
+        """Build env var entries for cloud services, using secretKeyRef where configured."""
+        env: list[dict[str, Any]] = []
+        for var in self._CLOUD_ENV_VARS:
+            ref = self.k8s.env_secrets.get(var)
+            if ref and isinstance(ref, dict) and ref.get("secret") and ref.get("key"):
+                env.append(
+                    {
+                        "name": var,
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": ref["secret"],
+                                "key": ref["key"],
+                            }
+                        },
+                    }
+                )
+            else:
+                val = os.environ.get(var)
+                if val:
+                    env.append({"name": var, "value": val})
+        return env
 
     def detect_image(self) -> str:
         """Detect the container image to use for runner Jobs.
@@ -84,6 +130,10 @@ class K8sOrchestrator:
 
     def build_job_specs(self) -> list[dict[str, Any]]:
         """Build K8s Job specs for all batches."""
+        errors = self.validate_env_config()
+        if errors:
+            for msg in errors:
+                logger.warning("Env config issue: %s", msg)
         image = self.detect_image()
         namespace = self.detect_namespace()
         specs: list[dict[str, Any]] = []
@@ -155,15 +205,8 @@ class K8sOrchestrator:
         if self.k8s.runner_resources.limits.memory:
             container["resources"]["limits"]["memory"] = self.k8s.runner_resources.limits.memory
 
-        # Propagate environment variables for cloud services
-        for env_var in (
-            "GCS_BUCKET",
-            "QDRANT_URL",
-            "QDRANT_API_KEY",
-        ):
-            val = os.environ.get(env_var)
-            if val:
-                container["env"].append({"name": env_var, "value": val})
+        # Inject cloud-service env vars (secretKeyRef or plaintext fallback)
+        container["env"].extend(self._build_env_vars())
 
         volumes: list[dict[str, Any]] = []
 
@@ -258,10 +301,8 @@ class K8sOrchestrator:
                     self.k8s.expander_resources.limits.memory
                 )
 
-            for env_var in ("GCS_BUCKET", "QDRANT_URL", "QDRANT_API_KEY"):
-                val = os.environ.get(env_var)
-                if val:
-                    container["env"].append({"name": env_var, "value": val})
+            # Inject cloud-service env vars (secretKeyRef or plaintext fallback)
+            container["env"].extend(self._build_env_vars())
 
             volumes: list[dict[str, Any]] = []
             if self.k8s.config_configmap:

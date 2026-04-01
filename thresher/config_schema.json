@@ -526,6 +526,25 @@
           "type": "string",
           "description": "Name of a Secret containing GCS service account key (key.json) to mount in Jobs.",
           "default": ""
+        },
+        "env_secrets": {
+          "type": "object",
+          "description": "Map env var names to K8s Secret references (secretKeyRef) instead of plaintext values. Each value is {secret: name, key: key}.",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["secret", "key"],
+            "additionalProperties": false,
+            "properties": {
+              "secret": {
+                "type": "string",
+                "description": "Name of the K8s Secret."
+              },
+              "key": {
+                "type": "string",
+                "description": "Key within the Secret."
+              }
+            }
+          }
         }
       }
     },
