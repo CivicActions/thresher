@@ -55,6 +55,20 @@ def main(argv: list[str] | None = None) -> int:
     # Status subcommand
     subparsers.add_parser("status", help="Show pipeline queue and indexing status")
 
+    # Scale subcommand — create/update/delete runner Jobs without re-running controller
+    scale = subparsers.add_parser("scale", help="Scale runner Jobs to target count")
+    scale.add_argument(
+        "target",
+        type=int,
+        help="Target number of runner Jobs (0 to delete all)",
+    )
+    scale.add_argument(
+        "--delete-existing",
+        action="store_true",
+        help="Delete all existing Jobs before creating new ones (updates resources)",
+    )
+    scale.add_argument("--dry-run", action="store_true", help="Show plan without applying")
+
     # MCP config subcommand (deprecated)
     subparsers.add_parser(
         "mcp-config",
@@ -74,6 +88,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_expander(config, args)
     elif args.command == "status":
         return _run_status(config)
+    elif args.command == "scale":
+        return _run_scale(config, args)
     elif args.command == "mcp-config":
         return _run_mcp_config(config)
 
@@ -299,6 +315,112 @@ def _run_runner(config, args) -> int:
         return 0 if failed == 0 else 1
     finally:
         destination.close()
+
+
+def _run_scale(config, args) -> int:
+    """Scale runner Jobs to a target count without re-running the controller."""
+    import logging
+
+    from thresher.controller.k8s_orchestrator import K8sOrchestrator
+
+    logger = logging.getLogger("thresher.cli.scale")
+
+    target: int = args.target
+    delete_existing: bool = args.delete_existing
+    dry_run: bool = args.dry_run
+
+    try:
+        from kubernetes import client
+        from kubernetes import config as k8s_config
+    except ImportError:
+        print("Error: kubernetes package required. Install with: pip install kubernetes")
+        return 1
+
+    try:
+        k8s_config.load_incluster_config()
+    except k8s_config.ConfigException:
+        k8s_config.load_kube_config()
+
+    batch_api = client.BatchV1Api()
+    namespace = config.kubernetes.namespace or "default"
+
+    # List existing runner Jobs
+    existing_jobs = batch_api.list_namespaced_job(
+        namespace=namespace,
+        label_selector="app=thresher,component=runner",
+    )
+    existing_names = [j.metadata.name for j in existing_jobs.items]
+    print(f"Found {len(existing_names)} existing runner Jobs in namespace '{namespace}'")
+
+    # Delete existing jobs if requested
+    deleted = 0
+    if delete_existing and existing_names:
+        if dry_run:
+            print(f"[dry-run] Would delete {len(existing_names)} existing Jobs")
+        else:
+            propagation = client.V1DeleteOptions(
+                propagation_policy="Background",
+            )
+            for name in existing_names:
+                try:
+                    batch_api.delete_namespaced_job(
+                        name=name,
+                        namespace=namespace,
+                        body=propagation,
+                    )
+                    deleted += 1
+                except client.ApiException as e:
+                    if e.status == 404:
+                        logger.debug("Job %s already gone", name)
+                    else:
+                        logger.error("Failed to delete Job %s: %s", name, e)
+            print(f"Deleted {deleted} existing Jobs")
+
+    if target == 0:
+        if not delete_existing:
+            print("Target is 0 but --delete-existing not set; nothing to do")
+        return 0
+
+    # Build new Job specs via orchestrator
+    batch_ids = [f"batch-{i:04d}" for i in range(1, target + 1)]
+    orchestrator = K8sOrchestrator(config, batch_ids)
+    specs = orchestrator.build_job_specs()
+
+    # If not deleting, skip jobs that already exist
+    if not delete_existing:
+        existing_set = set(existing_names)
+        specs = [s for s in specs if s["metadata"]["name"] not in existing_set]
+        if len(specs) < target:
+            print(
+                f"Skipping {target - len(specs)} Jobs that already exist "
+                f"(use --delete-existing to replace them)"
+            )
+
+    max_jobs = min(len(specs), config.kubernetes.max_parallelism)
+    specs = specs[:max_jobs]
+
+    if dry_run:
+        print(f"[dry-run] Would create {len(specs)} runner Jobs")
+        for s in specs[:5]:
+            print(f"  {s['metadata']['name']}")
+        if len(specs) > 5:
+            print(f"  ... and {len(specs) - 5} more")
+        return 0
+
+    created = 0
+    for spec in specs:
+        job_name = spec["metadata"]["name"]
+        try:
+            batch_api.create_namespaced_job(namespace=namespace, body=spec)
+            created += 1
+        except client.ApiException as e:
+            if e.status == 409:
+                logger.debug("Job %s already exists, skipping", job_name)
+            else:
+                logger.error("Failed to create Job %s: %s", job_name, e)
+
+    print(f"Created {created} runner Jobs (target: {target})")
+    return 0
 
 
 def _run_mcp_config(config) -> int:
