@@ -251,6 +251,7 @@ def _parse_routing_rules(raw: list[Any] | None) -> list[RoutingRule]:
                 path=entry.get("path", []),
                 filename=entry.get("filename", []),
                 embedding=entry.get("embedding", ""),
+                skip=bool(entry.get("skip", False)),
             )
         )
     return rules

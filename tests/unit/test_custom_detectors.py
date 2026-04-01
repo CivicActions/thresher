@@ -263,7 +263,9 @@ class TestMimeTypeClassification:
         assert result == "general-source"
 
     def test_extensionless_binary_returns_none(self, default_groups):
-        content = b"\x00\x01\x02\x03\xff\xfe binary garbage"
+        # Control chars with null bytes — libmagic returns application/octet-stream,
+        # not a supported format like image/g3fax (which the old content triggered).
+        content = b"\x07\x00\x0e\x00\x10\x00\x12\x00\x14\x00\x16\x00\x18\x00\x1a\x00"
         result = classify_file("data/unknown_blob", default_groups, content=content)
         assert result is None
 

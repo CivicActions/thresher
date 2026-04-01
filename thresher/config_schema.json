@@ -198,17 +198,19 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "collection"
-            ],
             "properties": {
               "collection": {
                 "type": "string",
-                "description": "Target collection name."
+                "description": "Target collection name. Required unless skip is true."
               },
               "name": {
                 "type": "string",
                 "description": "Human-readable rule name."
+              },
+              "skip": {
+                "type": "boolean",
+                "description": "When true, matching files are excluded from processing entirely.",
+                "default": false
               },
               "file_group": {
                 "type": "array",

@@ -8,10 +8,25 @@ import logging
 from thresher.config import Config
 from thresher.controller.archive_expander import ArchiveExpander, is_archive
 from thresher.processing.classifier import classify_file
+from thresher.processing.router import Router
 from thresher.providers.source import SourceProvider
 from thresher.types import FileInfo
 
 logger = logging.getLogger("thresher.controller.scanner")
+
+
+def _build_router(config: Config) -> Router | None:
+    """Build a Router from config, or return None if no skip rules exist."""
+    if not config.routing.rules:
+        return None
+    has_skip = any(r.skip for r in config.routing.rules)
+    if not has_skip:
+        return None
+    return Router(
+        rules=config.routing.rules,
+        default_collection=config.routing.default_collection,
+        default_embedding=getattr(config.embedding, "default", "default"),
+    )
 
 
 def _load_skip_list(source: SourceProvider, queue_prefix: str) -> set[str]:
@@ -64,9 +79,13 @@ def scan_direct_files(
         if skip_set:
             logger.info("Loaded skip list with %d entries", len(skip_set))
 
+    # Build router for skip-rule filtering
+    router = _build_router(config)
+
     logger.info("Scanning files with prefix: %s", prefix or "(root)")
 
     skip_list_skipped = 0
+    route_skipped = 0
     for file_info in source.list_files(prefix=prefix, recursive=True):
         if file_info.path.endswith("/"):
             continue
@@ -85,6 +104,10 @@ def scan_direct_files(
             skipped += 1
             continue
 
+        if router and router.route(file_info.path, group) is None:
+            route_skipped += 1
+            continue
+
         items.append(
             {
                 "path": file_info.path,
@@ -96,6 +119,8 @@ def scan_direct_files(
 
     if skip_list_skipped:
         logger.info("Skip list filtered %d previously-processed files", skip_list_skipped)
+    if route_skipped:
+        logger.info("Routing skip rules excluded %d files", route_skipped)
     logger.info(
         "Direct scan complete: %d files queued, %d archives found, %d skipped",
         len(items),
@@ -117,6 +142,8 @@ def scan_expanded_files(
     queue_prefix = config.source.gcs.queue_prefix
     items: list[dict] = []
     skipped = 0
+    route_skipped = 0
+    router = _build_router(config)
 
     skip_set: set[str] = set()
     if not config.force:
@@ -138,6 +165,10 @@ def scan_expanded_files(
             skipped += 1
             continue
 
+        if router and router.route(file_info.path, group) is None:
+            route_skipped += 1
+            continue
+
         items.append(
             {
                 "path": file_info.path,
@@ -148,6 +179,8 @@ def scan_expanded_files(
             }
         )
 
+    if route_skipped:
+        logger.info("Routing skip rules excluded %d expanded files", route_skipped)
     logger.info("Expanded scan complete: %d files queued, %d skipped", len(items), skipped)
     return items
 

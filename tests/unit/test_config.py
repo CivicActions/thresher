@@ -261,6 +261,25 @@ class TestRoutingRuleParsing:
         rules = _parse_routing_rules(raw)
         assert len(rules) == 1
 
+    def test_skip_rule_parsed(self):
+        raw = [
+            {
+                "name": "skip-araxis",
+                "skip": True,
+                "path": ["FolderComparisonReport_files/"],
+            }
+        ]
+        rules = _parse_routing_rules(raw)
+        assert len(rules) == 1
+        assert rules[0].skip is True
+        assert rules[0].collection == ""
+        assert rules[0].path == ["FolderComparisonReport_files/"]
+
+    def test_skip_defaults_false(self):
+        raw = [{"collection": "docs", "name": "normal"}]
+        rules = _parse_routing_rules(raw)
+        assert rules[0].skip is False
+
     def test_routing_rules_from_user_config(self, tmp_path):
         user_file = tmp_path / "user.yaml"
         user_file.write_text(

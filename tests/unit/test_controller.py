@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from thresher.config import Config, GCSConfig, SourceConfig
+from thresher.config import Config, GCSConfig, RoutingConfig, SourceConfig
 from thresher.controller.queue_builder import (
     _serialize_batch,
     build_queue,
@@ -21,6 +21,7 @@ from thresher.types import (
     FileTypeGroup,
     QueueBatch,
     QueueItem,
+    RoutingRule,
 )
 
 # ---------------------------------------------------------------------------
@@ -239,6 +240,126 @@ class TestScanExpandedFiles:
 
         items = scan_expanded_files(mock_source, config)
         assert items == []
+
+
+# ---------------------------------------------------------------------------
+# Scanner routing skip rule tests
+# ---------------------------------------------------------------------------
+
+
+class TestScanDirectFilesSkipRules:
+    """Tests for routing skip rules in scan_direct_files."""
+
+    def test_skip_rule_excludes_matching_files(self, mock_source, config):
+        """Files matching a skip rule should not appear in items."""
+        config.routing = RoutingConfig(
+            default_collection="default",
+            rules=[RoutingRule(skip=True, path=["data/junk/"])],
+        )
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(path="data/junk/report.pdf", size=200, updated=datetime.now()),
+                FileInfo(path="data/routine.m", size=1024, updated=datetime.now()),
+            ]
+        )
+
+        items, archives = scan_direct_files(mock_source, config)
+
+        assert len(items) == 1
+        assert items[0]["path"] == "data/routine.m"
+
+    def test_skip_rule_does_not_affect_non_matching(self, mock_source, config):
+        """Non-matching files pass through even when skip rules exist."""
+        config.routing = RoutingConfig(
+            default_collection="default",
+            rules=[RoutingRule(skip=True, path=["excluded/"])],
+        )
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(path="data/routine.m", size=1024, updated=datetime.now()),
+                FileInfo(path="data/report.pdf", size=2048, updated=datetime.now()),
+            ]
+        )
+
+        items, archives = scan_direct_files(mock_source, config)
+
+        assert len(items) == 2
+
+    def test_no_skip_rules_passes_all(self, mock_source, config):
+        """Without skip rules, all classified files are queued."""
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(path="data/routine.m", size=1024, updated=datetime.now()),
+            ]
+        )
+
+        items, archives = scan_direct_files(mock_source, config)
+
+        assert len(items) == 1
+
+    def test_skip_rule_with_filename_glob(self, mock_source, config):
+        """Skip rule using filename glob pattern."""
+        config.routing = RoutingConfig(
+            default_collection="default",
+            rules=[RoutingRule(skip=True, filename=["FileComparisonReport*"])],
+        )
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(
+                    path="data/FolderComparisonReport_files/FileComparisonReport_123.pdf",
+                    size=100,
+                    updated=datetime.now(),
+                ),
+                FileInfo(path="data/routine.m", size=1024, updated=datetime.now()),
+            ]
+        )
+
+        items, archives = scan_direct_files(mock_source, config)
+
+        assert len(items) == 1
+        assert items[0]["path"] == "data/routine.m"
+
+
+class TestScanExpandedFilesSkipRules:
+    """Tests for routing skip rules in scan_expanded_files."""
+
+    def test_skip_rule_excludes_expanded_files(self, mock_source, config):
+        """Skip rules filter files during expanded scanning too."""
+        config.routing = RoutingConfig(
+            default_collection="default",
+            rules=[RoutingRule(skip=True, path=["FolderComparisonReport_files/"])],
+        )
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(
+                    path="expanded/archive/FolderComparisonReport_files/junk.pdf",
+                    size=100,
+                    updated=datetime.now(),
+                ),
+                FileInfo(
+                    path="expanded/archive/real_doc.m",
+                    size=500,
+                    updated=datetime.now(),
+                ),
+            ]
+        )
+
+        items = scan_expanded_files(mock_source, config)
+
+        assert len(items) == 1
+        assert items[0]["path"] == "expanded/archive/real_doc.m"
+
+    def test_no_skip_rules_passes_all_expanded(self, mock_source, config):
+        """Without skip rules, all classified expanded files are queued."""
+        mock_source.list_files.return_value = iter(
+            [
+                FileInfo(path="expanded/archive/doc.m", size=100, updated=datetime.now()),
+            ]
+        )
+
+        items = scan_expanded_files(mock_source, config)
+
+        assert len(items) == 1
 
 
 # ---------------------------------------------------------------------------

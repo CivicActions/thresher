@@ -119,6 +119,13 @@ class FileProcessor:
 
                 # 3. Route to collection
                 route_result = self.router.route(file_path, group_name)
+                if route_result is None:
+                    return ProcessingResult(
+                        path=file_path,
+                        status=ProcessingStatus.SKIPPED,
+                        duration_seconds=time.time() - start,
+                        file_type_group=group_name,
+                    )
                 collection = route_result.collection
                 embedding_name = route_result.embedding
 

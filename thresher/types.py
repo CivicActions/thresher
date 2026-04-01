@@ -68,12 +68,13 @@ class RouteResult:
 
 @dataclass
 class RoutingRule:
-    collection: str
+    collection: str = ""
     name: str = ""
     file_group: list[str] = field(default_factory=list)
     path: list[str] = field(default_factory=list)
     filename: list[str] = field(default_factory=list)
     embedding: str = ""
+    skip: bool = False
 
 
 @dataclass

@@ -32,7 +32,7 @@ class Router:
         self,
         file_path: str,
         file_type_group: str | None = None,
-    ) -> RouteResult:
+    ) -> RouteResult | None:
         """Determine the target collection and embedding model for a file.
 
         Args:
@@ -40,12 +40,16 @@ class Router:
             file_type_group: Classified file type group name
 
         Returns:
-            RouteResult with collection name and embedding model name
+            RouteResult with collection name and embedding model name,
+            or ``None`` if a skip rule matched (file should be excluded).
         """
         filename = file_path.rsplit("/", 1)[-1] if "/" in file_path else file_path
 
         for rule in self.rules:
             if self._matches_rule(rule, file_path, filename, file_type_group):
+                if rule.skip:
+                    logger.debug("Skip rule '%s' matched: %s", rule.name, file_path)
+                    return None
                 embedding = rule.embedding or self.default_embedding
                 return RouteResult(collection=rule.collection, embedding=embedding)
 

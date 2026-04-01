@@ -67,9 +67,13 @@ class TestSchemaRejectsInvalid:
         )
         assert any("no_dot" in e or "extensions" in e for e in errors)
 
-    def test_routing_rule_missing_collection(self):
-        errors = validate_config({"routing": {"rules": [{"name": "no-collection-rule"}]}})
-        assert any("collection" in e for e in errors)
+    def test_routing_rule_rejects_unknown_property(self):
+        errors = validate_config({"routing": {"rules": [{"collection": "x", "bogus_field": True}]}})
+        assert any("bogus_field" in e or "additionalProperties" in e for e in errors)
+
+    def test_routing_skip_rule_valid_without_collection(self):
+        errors = validate_config({"routing": {"rules": [{"skip": True, "path": ["junk/"]}]}})
+        assert not errors
 
     def test_url_resolver_missing_type(self):
         errors = validate_config({"url_resolvers": [{"match": "^foo"}]})
