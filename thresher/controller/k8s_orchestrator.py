@@ -243,7 +243,7 @@ class K8sOrchestrator:
 
         pod_spec: dict[str, Any] = {
             "containers": [container],
-            "restartPolicy": "Never",
+            "restartPolicy": "OnFailure",
         }
 
         if volumes:

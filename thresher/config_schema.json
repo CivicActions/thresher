@@ -318,6 +318,12 @@
           "minimum": 1,
           "default": 100
         },
+        "embed_batch_size": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Max chunks to embed per ONNX inference call (0 = no batching).",
+          "default": 256
+        },
         "archive_exclude_extensions": {
           "type": "array",
           "items": {
@@ -512,7 +518,7 @@
         "backoff_limit": {
           "type": "integer",
           "minimum": 0,
-          "default": 3
+          "default": 20
         },
         "ttl_seconds_after_finished": {
           "type": "integer",

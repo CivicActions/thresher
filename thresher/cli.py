@@ -312,6 +312,12 @@ def _run_runner(config, args) -> int:
             f"Runner {args.runner_id} complete: "
             f"{indexed} indexed, {skipped} skipped, {failed} failed"
         )
+
+        # Exit non-zero when memory exceeded so K8s restarts the pod with
+        # fresh process memory (restartPolicy: OnFailure).
+        if loop.memory_exceeded:
+            return 2
+
         return 0 if failed == 0 else 1
     finally:
         destination.close()

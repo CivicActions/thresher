@@ -179,9 +179,16 @@ class FileProcessor:
                         file_type_group=group_name,
                     )
 
-                # 8. Embed
+                # 8. Embed in batches to limit peak memory on large files
                 chunk_texts = [c["text"] for c in raw_chunks]
-                vectors = self.embedder.embed_texts(chunk_texts, embedding_name)
+                embed_batch = self.config.processing.embed_batch_size
+                if embed_batch > 0 and len(chunk_texts) > embed_batch:
+                    vectors: list[list[float]] = []
+                    for offset in range(0, len(chunk_texts), embed_batch):
+                        batch_slice = chunk_texts[offset : offset + embed_batch]
+                        vectors.extend(self.embedder.embed_texts(batch_slice, embedding_name))
+                else:
+                    vectors = self.embedder.embed_texts(chunk_texts, embedding_name)
 
                 # 9. Build IndexChunks with metadata
                 index_chunks: list[IndexChunk] = []

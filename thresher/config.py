@@ -74,6 +74,7 @@ class ProcessingConfig:
     archive_exclude_extensions: list[str] = field(
         default_factory=lambda: [".jar", ".war", ".whl", ".egg", ".apk", ".ipa"]
     )
+    embed_batch_size: int = 256
     max_expansion_parallelism: int = 5
     upload_batch_size: int = 50
     expansion_timeout: int = 3600
@@ -115,7 +116,7 @@ class K8sConfig:
     max_parallelism: int = 10
     node_selector: dict[str, str] = field(default_factory=dict)
     tolerations: list[dict[str, Any]] = field(default_factory=list)
-    backoff_limit: int = 3
+    backoff_limit: int = 20
     ttl_seconds_after_finished: int = 3600
     config_configmap: str = ""
     credentials_secret: str = ""
@@ -401,6 +402,9 @@ def _build_config(raw: dict[str, Any]) -> Config:
             summary_interval=int(
                 proc_raw.get("summary_interval", 100) if isinstance(proc_raw, dict) else 100
             ),
+            embed_batch_size=int(
+                proc_raw.get("embed_batch_size", 256) if isinstance(proc_raw, dict) else 256
+            ),
             max_expansion_parallelism=int(
                 proc_raw.get("max_expansion_parallelism", 5) if isinstance(proc_raw, dict) else 5
             ),
@@ -456,7 +460,9 @@ def _build_config(raw: dict[str, Any]) -> Config:
             ),
             node_selector=k8s_raw.get("node_selector", {}) if isinstance(k8s_raw, dict) else {},
             tolerations=k8s_raw.get("tolerations", []) if isinstance(k8s_raw, dict) else [],
-            backoff_limit=int(k8s_raw.get("backoff_limit", 3) if isinstance(k8s_raw, dict) else 3),
+            backoff_limit=int(
+                k8s_raw.get("backoff_limit", 20) if isinstance(k8s_raw, dict) else 20
+            ),
             ttl_seconds_after_finished=int(
                 k8s_raw.get("ttl_seconds_after_finished", 3600)
                 if isinstance(k8s_raw, dict)

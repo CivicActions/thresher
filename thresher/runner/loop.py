@@ -55,10 +55,23 @@ class RunnerLoop:
         self._reclaim_interval: float = 300.0  # seconds between stale-batch scans
         self._claim_retries: int = 3  # retries before concluding no batches left
         self._claim_backoff: float = 10.0  # seconds between claim retries
+        self._idle_timeout: float = 600.0  # seconds idle before exiting
+
+    @property
+    def memory_exceeded(self) -> bool:
+        """Whether the runner exited due to memory pressure."""
+        return self._memory_exceeded
 
     def run(self) -> list[ProcessingResult]:
-        """Run the main processing loop until no more batches available."""
+        """Run the main processing loop until no more batches available.
+
+        The runner stays alive with idle backoff when no batches are found,
+        giving other runners time to finish and release work.  It exits
+        cleanly only after ``_idle_timeout`` seconds of sustained idleness,
+        or non-zero when memory is exceeded (so K8s can restart the pod).
+        """
         queue_prefix = self.config.source.gcs.queue_prefix
+        idle_since: float | None = None
 
         logger.info("Runner %s starting", self.runner_id)
 
@@ -71,9 +84,29 @@ class RunnerLoop:
 
             batch_path = self._claim_with_retry(queue_prefix)
             if batch_path is None:
-                logger.info("No more batches available after retries")
-                break
+                # No work right now — start or continue idle backoff
+                if idle_since is None:
+                    idle_since = time.time()
+                idle_duration = time.time() - idle_since
+                if idle_duration >= self._idle_timeout:
+                    logger.info(
+                        "No batches for %.0fs (idle timeout %.0fs), exiting",
+                        idle_duration,
+                        self._idle_timeout,
+                    )
+                    break
+                sleep_time = min(30.0 + random.uniform(0, 10), self._idle_timeout - idle_duration)
+                logger.info(
+                    "No batches available, idle %.0fs/%.0fs, sleeping %.0fs",
+                    idle_duration,
+                    self._idle_timeout,
+                    sleep_time,
+                )
+                time.sleep(sleep_time)
+                continue
 
+            # Got work — reset idle timer
+            idle_since = None
             self._process_batch(batch_path, queue_prefix)
 
         if self._memory_exceeded:
@@ -211,12 +244,18 @@ class RunnerLoop:
     # -- batch processing (T026, T029, T030) --------------------------------
 
     def _process_batch(self, batch_path: str, queue_prefix: str) -> None:
-        """Process all items in a claimed batch."""
+        """Process all items in a claimed batch.
+
+        Progress is checkpointed back to the claimed batch file after each
+        file so that if the pod is OOM-killed, a reclaimed batch resumes
+        from the last checkpoint instead of re-processing from scratch.
+        """
         data = self.source.download_content(batch_path).decode("utf-8")
         batch = deserialize_batch(data)
 
         retry_items: list[QueueItem] = []
         failed_items: list[QueueItem] = []
+        items_since_checkpoint = 0
 
         for item in batch.items:
             if self._memory_exceeded:
@@ -245,6 +284,15 @@ class RunnerLoop:
                 else:
                     item.status = "failed"
                     retry_items.append(item)
+
+            items_since_checkpoint += 1
+
+            # Checkpoint progress every 10 items so OOM recovery skips
+            # already-completed files.  The write overwrites the claimed
+            # batch in-place (no generation check needed — we own it).
+            if items_since_checkpoint >= 10:
+                self._checkpoint_batch(batch_path, batch)
+                items_since_checkpoint = 0
 
             # Memory check after each file
             gc_between_files()
@@ -279,6 +327,19 @@ class RunnerLoop:
         logger.info("Completed batch %s", batch.batch_id)
 
     # -- helpers ------------------------------------------------------------
+
+    def _checkpoint_batch(self, batch_path: str, batch: QueueBatch) -> None:
+        """Write current batch state back to the claimed file.
+
+        This is a best-effort overwrite — if the pod is killed between
+        checkpoints, progress since the last checkpoint is repeated on
+        reclaim (items already indexed are deduplicated by Qdrant UUID).
+        """
+        try:
+            data = _serialize_batch(batch).encode("utf-8")
+            self.source.upload_content(batch_path, data)
+        except Exception as exc:
+            logger.warning("Checkpoint failed for %s: %s", batch_path, exc)
 
     def _write_sub_batch(
         self,

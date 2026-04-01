@@ -244,6 +244,20 @@ class TestBuildJobSpecs:
         specs = orch.build_job_specs()
         assert specs == []
 
+    def test_restart_policy_on_failure(self, monkeypatch):
+        monkeypatch.delenv("THRESHER_IMAGE", raising=False)
+        monkeypatch.delenv("GCS_BUCKET", raising=False)
+        monkeypatch.delenv("QDRANT_URL", raising=False)
+        monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+        monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+
+        config = _make_config(image="test:v1", namespace="ns")
+        orch = K8sOrchestrator(config, ["batch-001"])
+        specs = orch.build_job_specs()
+
+        pod_spec = specs[0]["spec"]["template"]["spec"]
+        assert pod_spec["restartPolicy"] == "OnFailure"
+
 
 class TestExportManifests:
     """Tests for YAML manifest export."""

@@ -632,3 +632,122 @@ class TestMemoryExitsLoop:
 
         assert loop._memory_exceeded is True
         assert len(results) == 1
+
+
+# ---------------------------------------------------------------------------
+# Runner idle backoff + lifecycle
+# ---------------------------------------------------------------------------
+
+
+class TestIdleBackoff:
+    """Runner stays alive with backoff when no batches found."""
+
+    def test_idle_timeout_exits_after_duration(
+        self,
+        mock_source: MagicMock,
+        mock_destination: MagicMock,
+        mock_embedder: MagicMock,
+        config: Config,
+    ) -> None:
+        """Runner exits cleanly after idle_timeout with no batches."""
+        mock_source.list_files.return_value = iter([])
+
+        loop = _make_loop(mock_source, mock_destination, mock_embedder, config)
+        # Set a very short idle timeout so the test completes instantly
+        loop._idle_timeout = 0.0
+
+        with (
+            patch("thresher.runner.loop.check_memory", return_value=False),
+            patch.object(loop, "_claim_with_retry", return_value=None),
+        ):
+            results = loop.run()
+
+        assert results == []
+        assert loop._memory_exceeded is False
+
+    def test_idle_backoff_retries_before_exiting(
+        self,
+        mock_source: MagicMock,
+        mock_destination: MagicMock,
+        mock_embedder: MagicMock,
+        config: Config,
+    ) -> None:
+        """Runner sleeps and retries before giving up."""
+        loop = _make_loop(mock_source, mock_destination, mock_embedder, config)
+        loop._idle_timeout = 60.0
+
+        sleep_total = [0.0]
+        fake_time = [time.time()]
+
+        def advancing_sleep(seconds: float) -> None:
+            sleep_total[0] += seconds
+            fake_time[0] += seconds
+
+        def fake_clock() -> float:
+            return fake_time[0]
+
+        with (
+            patch("thresher.runner.loop.check_memory", return_value=False),
+            patch.object(loop, "_claim_with_retry", return_value=None),
+            patch("thresher.runner.loop.time.sleep", side_effect=advancing_sleep),
+            patch("thresher.runner.loop.time.time", side_effect=fake_clock),
+        ):
+            results = loop.run()
+
+        assert results == []
+        assert sleep_total[0] >= 59.0
+
+    def test_batch_resets_idle_timer(
+        self,
+        mock_source: MagicMock,
+        mock_destination: MagicMock,
+        mock_embedder: MagicMock,
+        config: Config,
+    ) -> None:
+        """Getting a batch resets idle timeout so runner keeps going."""
+        claim_calls = [0]
+
+        def claim_side_effect(queue_prefix: str) -> str | None:
+            claim_calls[0] += 1
+            if claim_calls[0] == 1:
+                return "queue/claimed/runner-01/batch-0001.json"
+            return None
+
+        batch = _make_batch(
+            items=[QueueItem(path="file1.m", source_type="direct")],
+        )
+        batch_json = _serialize_batch(batch).encode("utf-8")
+        mock_source.download_content.return_value = batch_json
+
+        loop = _make_loop(mock_source, mock_destination, mock_embedder, config)
+        loop._idle_timeout = 0.0  # Exit immediately after idle
+        loop.processor = MagicMock()
+        loop.processor.process_file.return_value = ProcessingResult(
+            path="file1.m",
+            status=ProcessingStatus.INDEXED,
+            duration_seconds=1.0,
+        )
+
+        with (
+            patch("thresher.runner.loop.gc_between_files"),
+            patch("thresher.runner.loop.check_memory", return_value=False),
+            patch.object(loop, "_claim_with_retry", side_effect=claim_side_effect),
+        ):
+            results = loop.run()
+
+        # Processed the batch and then exited on idle timeout
+        assert len(results) == 1
+        assert loop._memory_exceeded is False
+
+    def test_memory_exceeded_property(
+        self,
+        mock_source: MagicMock,
+        mock_destination: MagicMock,
+        mock_embedder: MagicMock,
+        config: Config,
+    ) -> None:
+        """Public memory_exceeded property reflects internal state."""
+        loop = _make_loop(mock_source, mock_destination, mock_embedder, config)
+        assert loop.memory_exceeded is False
+        loop._memory_exceeded = True
+        assert loop.memory_exceeded is True
