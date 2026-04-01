@@ -124,7 +124,7 @@ class TestJobCreation:
         assert container.resources.limits["cpu"] == "500m"
         assert container.resources.limits["memory"] == "256Mi"
 
-    def test_restart_policy_never(self, clean_k8s_jobs):
+    def test_restart_policy_on_failure(self, clean_k8s_jobs):
         from thresher.controller.k8s_orchestrator import K8sOrchestrator
 
         config = _make_config()
@@ -134,7 +134,7 @@ class TestJobCreation:
         job = clean_k8s_jobs.read_namespaced_job(
             name="thresher-runner-restart-test", namespace="default"
         )
-        assert job.spec.template.spec.restart_policy == "Never"
+        assert job.spec.template.spec.restart_policy == "OnFailure"
 
 
 class TestMaxParallelism:
