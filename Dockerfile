@@ -46,6 +46,15 @@ RUN .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('sen
 RUN .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('nomic-ai/nomic-embed-text-v1.5')"
 RUN .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('jinaai/jina-embeddings-v2-base-code')"
 
+# Pre-download tree-sitter grammars for code chunking.
+# tree-sitter-language-pack downloads grammars lazily; without this
+# they'd be missing at runtime in offline containers.
+RUN .venv/bin/python -c "\
+from tree_sitter_language_pack import download; \
+download(['python','javascript','typescript','java','c','cpp','go','rust', \
+  'ruby','php','csharp','swift','kotlin','scala','bash','perl','r','sql', \
+  'lua','zig','elixir','erlang','haskell'])"
+
 # Copy application code LAST — the most frequently changing layer.
 # Nothing expensive rebuilds after this.
 COPY thresher/ thresher/
