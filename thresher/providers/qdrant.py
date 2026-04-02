@@ -129,7 +129,13 @@ class QdrantDestinationProvider:
         ]
         for i in range(0, len(points), self.batch_size):
             batch = points[i : i + self.batch_size]
-            self._retry("upsert", self._client.upsert, collection_name=collection, points=batch)
+            self._retry(
+                "upsert",
+                self._client.upsert,
+                collection_name=collection,
+                points=batch,
+                wait=False,
+            )
 
     def exists_by_hash(self, collection: str, source_path: str, content_hash: str) -> bool:
         results = self._retry(

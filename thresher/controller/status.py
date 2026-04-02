@@ -32,6 +32,10 @@ class CollectionStatus:
 
     name: str
     points_count: int = 0
+    indexed_vectors_count: int = 0
+    segments_count: int = 0
+    optimizer_status: str = "unknown"
+    pending_operations: int = 0
     status: str = "unknown"
 
 
@@ -118,10 +122,22 @@ def get_collection_statuses(config: Config) -> list[CollectionStatus]:
         for col in collections:
             try:
                 info = client.get_collection(col.name)
+                # Normalise optimizer_status to a string
+                opt = info.optimizer_status
+                if isinstance(opt, str):
+                    opt_str = opt
+                elif hasattr(opt, "status"):
+                    opt_str = str(opt.status)
+                else:
+                    opt_str = str(opt)
                 statuses.append(
                     CollectionStatus(
                         name=col.name,
                         points_count=info.points_count or 0,
+                        indexed_vectors_count=info.indexed_vectors_count or 0,
+                        segments_count=info.segments_count,
+                        optimizer_status=opt_str,
+                        pending_operations=(info.update_queue.length if info.update_queue else 0),
                         status=str(info.status),
                     )
                 )
@@ -186,9 +202,22 @@ def format_status(status: PipelineStatus) -> str:
         lines.append("")
         lines.append("=== Qdrant Collections ===")
         total_points = 0
+        total_pending = 0
         for col in status.collections:
-            lines.append(f"  {col.name}: {col.points_count:,} points ({col.status})")
+            unindexed = col.points_count - col.indexed_vectors_count
+            parts = [f"{col.points_count:,} points"]
+            if unindexed > 0:
+                parts.append(f"{unindexed:,} unindexed")
+            parts.append(f"{col.segments_count} segments")
+            if col.pending_operations > 0:
+                parts.append(f"{col.pending_operations:,} pending ops")
+            parts.append(f"optimizer {col.optimizer_status}")
+            parts.append(col.status)
+            lines.append(f"  {col.name}: {', '.join(parts)}")
             total_points += col.points_count
+            total_pending += col.pending_operations
         lines.append(f"  Total: {total_points:,} points")
+        if total_pending > 0:
+            lines.append(f"  Pending write ops: {total_pending:,}")
 
     return "\n".join(lines)

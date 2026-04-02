@@ -124,6 +124,10 @@ class TestGetCollectionStatuses:
 
         mock_info = MagicMock()
         mock_info.points_count = 42
+        mock_info.indexed_vectors_count = 40
+        mock_info.segments_count = 3
+        mock_info.optimizer_status = "ok"
+        mock_info.update_queue = MagicMock(length=5)
         mock_info.status = "green"
 
         with patch("qdrant_client.QdrantClient") as MockClient:
@@ -136,6 +140,9 @@ class TestGetCollectionStatuses:
         assert len(result) == 1
         assert result[0].name == "test-col"
         assert result[0].points_count == 42
+        assert result[0].indexed_vectors_count == 40
+        assert result[0].segments_count == 3
+        assert result[0].pending_operations == 5
 
     def test_handles_connection_error(self) -> None:
         mock_config = MagicMock()
@@ -158,7 +165,17 @@ class TestFormatStatus:
     def test_basic_output(self) -> None:
         status = PipelineStatus(
             queue=QueueStatus(pending=10, claimed=5, done=85, total=100),
-            collections=[CollectionStatus(name="my-col", points_count=1000, status="green")],
+            collections=[
+                CollectionStatus(
+                    name="my-col",
+                    points_count=1000,
+                    indexed_vectors_count=1000,
+                    segments_count=4,
+                    optimizer_status="ok",
+                    pending_operations=0,
+                    status="green",
+                )
+            ],
             batch_size=250,
         )
         output = format_status(status)
@@ -168,7 +185,11 @@ class TestFormatStatus:
         assert "Pending: 10 batches" in output
         assert "Total:   100 batches" in output
         assert "my-col: 1,000 points" in output
+        assert "4 segments" in output
+        assert "optimizer ok" in output
         assert "Total: 1,000 points" in output
+        # No unindexed shown when fully indexed
+        assert "unindexed" not in output
 
     def test_shows_retry_when_present(self) -> None:
         status = PipelineStatus(
@@ -202,3 +223,24 @@ class TestFormatStatus:
         status = PipelineStatus(queue=QueueStatus())
         output = format_status(status)
         assert "0%" in output
+
+    def test_shows_unindexed_and_pending_ops(self) -> None:
+        status = PipelineStatus(
+            queue=QueueStatus(pending=1, total=1),
+            collections=[
+                CollectionStatus(
+                    name="col-a",
+                    points_count=5000,
+                    indexed_vectors_count=4800,
+                    segments_count=6,
+                    optimizer_status="ok",
+                    pending_operations=120,
+                    status="yellow",
+                )
+            ],
+        )
+        output = format_status(status)
+        assert "200 unindexed" in output
+        assert "120 pending ops" in output
+        assert "6 segments" in output
+        assert "Pending write ops: 120" in output
