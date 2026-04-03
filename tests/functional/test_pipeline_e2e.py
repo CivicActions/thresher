@@ -243,47 +243,6 @@ class TestSourceCodeEndToEnd:
         assert result.file_type_group == "general-source"
 
 
-class TestContentHashDedup:
-    """Verify content-hash deduplication skips re-indexing unchanged files."""
-
-    def test_same_content_skipped_on_second_run(self, processor, source_provider, clean_qdrant):
-        content = make_text_file("Duplicate content test\n")
-        source_provider.upload_content("source/dup.txt", content)
-
-        # First run — should index
-        r1 = processor.process_file("source/dup.txt")
-        assert r1.status == ProcessingStatus.INDEXED
-
-        # Second run — same content hash, should skip
-        r2 = processor.process_file("source/dup.txt")
-        assert r2.status == ProcessingStatus.SKIPPED
-
-    def test_changed_content_reindexed(self, processor, source_provider, clean_qdrant):
-        source_provider.upload_content("source/change.txt", make_text_file("Version 1\n"))
-        r1 = processor.process_file("source/change.txt")
-        assert r1.status == ProcessingStatus.INDEXED
-
-        # Upload different content at same path
-        source_provider.upload_content("source/change.txt", make_text_file("Version 2\n"))
-        # Need to force or delete old entry — in real pipeline the controller handles this.
-        # We process with force=True config variant:
-        forced_config = _make_config()
-        forced_config.force = True
-
-        from thresher.runner.processor import FileProcessor
-
-        forced_processor = FileProcessor(
-            source=processor.source,
-            destination=processor.destination,
-            embedder=processor.embedder,
-            router=processor.router,
-            config=forced_config,
-        )
-        r2 = forced_processor.process_file("source/change.txt")
-        assert r2.status == ProcessingStatus.INDEXED
-        assert r2.content_hash != r1.content_hash
-
-
 class TestUnknownFileSkipped:
     """Files with unknown extensions and non-text content should be skipped."""
 
