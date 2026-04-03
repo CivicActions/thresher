@@ -56,6 +56,8 @@ class RunnerLoop:
         self._claim_retries: int = 3  # retries before concluding no batches left
         self._claim_backoff: float = 10.0  # seconds between claim retries
         self._idle_timeout: float = 600.0  # seconds idle before exiting
+        self._defer_indexing: bool = config.destination.qdrant.defer_indexing
+        self._indexing_deferred_for: set[str] = set()  # collections with HNSW disabled
 
     @property
     def memory_exceeded(self) -> bool:
@@ -115,6 +117,12 @@ class RunnerLoop:
                 self.runner_id,
                 self.config.processing.memory_threshold_mb,
             )
+
+        # Re-enable HNSW indexing on clean exit (idle timeout = all work done).
+        # Memory-exceeded exits skip this so that still-running runners are
+        # not disrupted by premature index rebuilds.
+        if not self._memory_exceeded and self._indexing_deferred_for:
+            self._resume_indexing()
 
         self._print_summary()
         return self.results
@@ -273,6 +281,9 @@ class RunnerLoop:
             if result.status == ProcessingStatus.INDEXED:
                 item.status = "complete"
                 item.completed_at = time.time()
+                # Track collections for deferred indexing re-enable
+                if self._defer_indexing and result.collection:
+                    self._ensure_indexing_deferred(result.collection)
             elif result.status == ProcessingStatus.SKIPPED:
                 item.status = "complete"
                 item.completed_at = time.time()
@@ -359,6 +370,26 @@ class RunnerLoop:
         path = f"{queue_prefix}{sub_dir}/{batch_id}.json"
         self.source.upload_content(path, _serialize_batch(sub_batch).encode("utf-8"))
         logger.info("Wrote %d items to %s", len(items), path)
+
+    # -- deferred HNSW indexing ---------------------------------------------
+
+    def _ensure_indexing_deferred(self, collection: str) -> None:
+        """Disable HNSW indexing for *collection* if not already done."""
+        if collection in self._indexing_deferred_for:
+            return
+        try:
+            self.destination.set_indexing_threshold(collection, 0)
+            self._indexing_deferred_for.add(collection)
+        except Exception as exc:
+            logger.warning("Failed to defer indexing for %s: %s", collection, exc)
+
+    def _resume_indexing(self) -> None:
+        """Re-enable HNSW indexing on all deferred collections."""
+        for collection in sorted(self._indexing_deferred_for):
+            try:
+                self.destination.set_indexing_threshold(collection, 10000)
+            except Exception as exc:
+                logger.warning("Failed to resume indexing for %s: %s", collection, exc)
 
     # -- summary reporting (T031) -------------------------------------------
 

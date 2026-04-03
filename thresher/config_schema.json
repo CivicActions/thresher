@@ -88,6 +88,11 @@
               "type": "boolean",
               "description": "Use gRPC instead of REST for Qdrant communication.",
               "default": false
+            },
+            "defer_indexing": {
+              "type": "boolean",
+              "description": "Disable HNSW indexing during bulk upload.  Indexing is re-enabled automatically when the runner finishes all remaining work.",
+              "default": false
             }
           }
         }

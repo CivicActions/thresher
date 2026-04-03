@@ -668,3 +668,109 @@ class TestRunnerLoop:
         claim_path = loop._claim_next_batch("queue/")
 
         assert claim_path is None
+
+
+# ---------------------------------------------------------------------------
+# Deferred HNSW indexing tests
+# ---------------------------------------------------------------------------
+
+
+class TestDeferredIndexing:
+    """Tests for automatic HNSW indexing deferral and resumption."""
+
+    def test_ensure_indexing_deferred_calls_provider(
+        self,
+        mock_source,
+        mock_destination,
+        mock_embedder,
+        config,
+    ):
+        """_ensure_indexing_deferred sets threshold=0 on first encounter."""
+        from thresher.runner.loop import RunnerLoop
+
+        config.destination.qdrant.defer_indexing = True
+        loop = RunnerLoop(
+            runner_id="runner-01",
+            source=mock_source,
+            destination=mock_destination,
+            embedder=mock_embedder,
+            config=config,
+        )
+
+        loop._ensure_indexing_deferred("vista")
+        mock_destination.set_indexing_threshold.assert_called_once_with("vista", 0)
+        assert "vista" in loop._indexing_deferred_for
+
+    def test_ensure_indexing_deferred_skips_second_call(
+        self,
+        mock_source,
+        mock_destination,
+        mock_embedder,
+        config,
+    ):
+        """_ensure_indexing_deferred is a no-op if already deferred."""
+        from thresher.runner.loop import RunnerLoop
+
+        config.destination.qdrant.defer_indexing = True
+        loop = RunnerLoop(
+            runner_id="runner-01",
+            source=mock_source,
+            destination=mock_destination,
+            embedder=mock_embedder,
+            config=config,
+        )
+
+        loop._ensure_indexing_deferred("vista")
+        loop._ensure_indexing_deferred("vista")
+        # Only called once
+        mock_destination.set_indexing_threshold.assert_called_once()
+
+    def test_resume_indexing_sets_threshold(
+        self,
+        mock_source,
+        mock_destination,
+        mock_embedder,
+        config,
+    ):
+        """_resume_indexing re-enables HNSW with threshold=10000."""
+        from thresher.runner.loop import RunnerLoop
+
+        config.destination.qdrant.defer_indexing = True
+        loop = RunnerLoop(
+            runner_id="runner-01",
+            source=mock_source,
+            destination=mock_destination,
+            embedder=mock_embedder,
+            config=config,
+        )
+
+        loop._indexing_deferred_for = {"vista", "rpms"}
+        loop._resume_indexing()
+
+        calls = mock_destination.set_indexing_threshold.call_args_list
+        assert len(calls) == 2
+        # Sorted order
+        assert calls[0] == (("rpms", 10000),)
+        assert calls[1] == (("vista", 10000),)
+
+    def test_defer_indexing_disabled_by_default(
+        self,
+        mock_source,
+        mock_destination,
+        mock_embedder,
+        config,
+    ):
+        """With defer_indexing=False, no indexing threshold calls are made."""
+        from thresher.runner.loop import RunnerLoop
+
+        assert config.destination.qdrant.defer_indexing is False
+        loop = RunnerLoop(
+            runner_id="runner-01",
+            source=mock_source,
+            destination=mock_destination,
+            embedder=mock_embedder,
+            config=config,
+        )
+
+        assert loop._defer_indexing is False
+        assert len(loop._indexing_deferred_for) == 0

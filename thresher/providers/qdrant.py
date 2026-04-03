@@ -153,3 +153,23 @@ class QdrantDestinationProvider:
 
     def close(self) -> None:
         self._client.close()
+
+    def set_indexing_threshold(self, collection: str, threshold: int) -> None:
+        """Update the HNSW indexing_threshold for a collection.
+
+        Set to 0 to defer index building during bulk upload, or back to a
+        positive value (e.g. 10000) to resume normal indexing after the load.
+        """
+        from qdrant_client.http.models import OptimizersConfigDiff
+
+        self._retry(
+            "update_collection",
+            self._client.update_collection,
+            collection_name=collection,
+            optimizer_config=OptimizersConfigDiff(indexing_threshold=threshold),
+        )
+        logger.info(
+            "Set indexing_threshold=%d on collection %s",
+            threshold,
+            collection,
+        )

@@ -40,6 +40,7 @@ class QdrantConfig:
     timeout: int = 60
     batch_size: int = 1000
     prefer_grpc: bool = False
+    defer_indexing: bool = False
 
 
 @dataclass
@@ -325,6 +326,8 @@ def _build_config(raw: dict[str, Any]) -> Config:
         api_key=str(qdrant_raw.get("api_key", "")),
         timeout=int(qdrant_raw.get("timeout", 60)),
         batch_size=int(qdrant_raw.get("batch_size", 100)),
+        prefer_grpc=bool(qdrant_raw.get("prefer_grpc", False)),
+        defer_indexing=bool(qdrant_raw.get("defer_indexing", False)),
     )
 
     file_type_groups = _parse_file_type_groups(raw.get("file_type_groups"))
