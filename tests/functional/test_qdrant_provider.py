@@ -89,26 +89,6 @@ class TestIndexChunks:
         assert len(result[0]) == 0
 
 
-class TestExistsByHash:
-    def test_exists_after_indexing(self, qdrant_provider, clean_qdrant):
-        qdrant_provider.ensure_collection("hash-test", VECTOR_SIZE, VECTOR_NAME)
-        chunk = _make_chunk(source="source/file.txt", content_hash="deadbeef")
-        qdrant_provider.index_chunks("hash-test", [chunk])
-
-        assert qdrant_provider.exists_by_hash("hash-test", "source/file.txt", "deadbeef") is True
-
-    def test_not_exists_different_hash(self, qdrant_provider, clean_qdrant):
-        qdrant_provider.ensure_collection("hash-test2", VECTOR_SIZE, VECTOR_NAME)
-        chunk = _make_chunk(source="source/file.txt", content_hash="aaaa")
-        qdrant_provider.index_chunks("hash-test2", [chunk])
-
-        assert qdrant_provider.exists_by_hash("hash-test2", "source/file.txt", "bbbb") is False
-
-    def test_not_exists_empty_collection(self, qdrant_provider, clean_qdrant):
-        qdrant_provider.ensure_collection("hash-empty", VECTOR_SIZE, VECTOR_NAME)
-        assert qdrant_provider.exists_by_hash("hash-empty", "source/x.txt", "whatever") is False
-
-
 class TestDeleteBySource:
     def test_deletes_matching_points(self, qdrant_provider, clean_qdrant):
         qdrant_provider.ensure_collection("del-test", VECTOR_SIZE, VECTOR_NAME)

@@ -28,7 +28,6 @@ from thresher.types import (
     ChunkerConfig,
     FileInfo,
     FileTypeGroup,
-    ProcessingStatus,
     RouteResult,
 )
 
@@ -81,7 +80,6 @@ def mock_source():
 @pytest.fixture
 def mock_destination():
     dest = MagicMock()
-    dest.exists_by_hash.return_value = False
     return dest
 
 
@@ -281,151 +279,6 @@ class TestScanFilesSkipList:
         items = scan_files(mock_source, config)
 
         assert len(items) == 2
-
-
-# ---------------------------------------------------------------------------
-# Content-hash dedup tests
-# ---------------------------------------------------------------------------
-
-
-class TestContentHashDedup:
-    """Tests for content-hash dedup in FileProcessor."""
-
-    def test_dedup_skips_when_hash_exists(
-        self,
-        mock_source,
-        mock_destination,
-        mock_embedder,
-        mock_router,
-        processor_config,
-    ):
-        """process_file returns SKIPPED when content hash already exists."""
-        from thresher.runner.processor import FileProcessor
-
-        mock_source.download_content.return_value = b"HELLO ; routine\n Q\n"
-        mock_source.cache_path.return_value = "cache/test.md"
-        mock_destination.exists_by_hash.return_value = True
-
-        processor = FileProcessor(
-            source=mock_source,
-            destination=mock_destination,
-            embedder=mock_embedder,
-            router=mock_router,
-            config=processor_config,
-        )
-
-        with (
-            patch(
-                "thresher.runner.processor.classify_file",
-                return_value="mumps",
-            ),
-            patch(
-                "thresher.runner.processor._extract",
-                return_value=("extracted text", None),
-            ),
-        ):
-            result = processor.process_file("data/routine.m", "mumps")
-
-        assert result.status == ProcessingStatus.SKIPPED
-        assert result.content_hash is not None
-        # Should NOT have called embed or index
-        mock_embedder.embed_texts.assert_not_called()
-        mock_destination.index_chunks.assert_not_called()
-
-    def test_dedup_skipped_with_force(
-        self,
-        mock_source,
-        mock_destination,
-        mock_embedder,
-        mock_router,
-        processor_config,
-    ):
-        """process_file with force=True bypasses content-hash dedup."""
-        from thresher.runner.processor import FileProcessor
-
-        processor_config.force = True
-        mock_source.download_content.return_value = b"HELLO ; routine\n Q\n"
-        mock_source.cache_path.return_value = "cache/test.md"
-        mock_destination.exists_by_hash.return_value = True
-
-        processor = FileProcessor(
-            source=mock_source,
-            destination=mock_destination,
-            embedder=mock_embedder,
-            router=mock_router,
-            config=processor_config,
-        )
-
-        with (
-            patch(
-                "thresher.runner.processor.classify_file",
-                return_value="mumps",
-            ),
-            patch(
-                "thresher.runner.processor._extract",
-                return_value=("extracted text", None),
-            ),
-            patch(
-                "thresher.runner.processor.dispatch_chunker",
-                return_value=[{"text": "chunk1"}],
-            ),
-            patch(
-                "thresher.runner.processor.resolve_source_url",
-                return_value="http://example.com/file.m",
-            ),
-        ):
-            result = processor.process_file("data/routine.m", "mumps")
-
-        assert result.status == ProcessingStatus.INDEXED
-        # exists_by_hash should NOT even be called when force is True
-        mock_destination.exists_by_hash.assert_not_called()
-        mock_destination.index_chunks.assert_called_once()
-
-    def test_dedup_allows_new_content(
-        self,
-        mock_source,
-        mock_destination,
-        mock_embedder,
-        mock_router,
-        processor_config,
-    ):
-        """process_file indexes when content hash is new (not in destination)."""
-        from thresher.runner.processor import FileProcessor
-
-        mock_source.download_content.return_value = b"HELLO ; routine\n Q\n"
-        mock_source.cache_path.return_value = "cache/test.md"
-        mock_destination.exists_by_hash.return_value = False
-
-        processor = FileProcessor(
-            source=mock_source,
-            destination=mock_destination,
-            embedder=mock_embedder,
-            router=mock_router,
-            config=processor_config,
-        )
-
-        with (
-            patch(
-                "thresher.runner.processor.classify_file",
-                return_value="mumps",
-            ),
-            patch(
-                "thresher.runner.processor._extract",
-                return_value=("extracted text", None),
-            ),
-            patch(
-                "thresher.runner.processor.dispatch_chunker",
-                return_value=[{"text": "chunk1"}],
-            ),
-            patch(
-                "thresher.runner.processor.resolve_source_url",
-                return_value="http://example.com/file.m",
-            ),
-        ):
-            result = processor.process_file("data/routine.m", "mumps")
-
-        assert result.status == ProcessingStatus.INDEXED
-        mock_destination.index_chunks.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

@@ -152,17 +152,6 @@ class FileProcessor:
                 # 5. Compute content hash
                 content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
 
-                # 5b. Content-hash dedup
-                if not self.config.force:
-                    if self.destination.exists_by_hash(collection, file_path, content_hash) is True:
-                        return ProcessingResult(
-                            path=file_path,
-                            status=ProcessingStatus.SKIPPED,
-                            duration_seconds=time.time() - start,
-                            content_hash=content_hash,
-                            file_type_group=group_name,
-                        )
-
                 # 6. Resolve source URL
                 source_url = resolve_source_url(
                     file_path, text, resolvers=self.config.url_resolvers or None

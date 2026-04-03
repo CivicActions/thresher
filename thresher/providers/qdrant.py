@@ -137,22 +137,6 @@ class QdrantDestinationProvider:
                 wait=False,
             )
 
-    def exists_by_hash(self, collection: str, source_path: str, content_hash: str) -> bool:
-        results = self._retry(
-            "scroll",
-            self._client.scroll,
-            collection_name=collection,
-            scroll_filter=Filter(
-                must=[
-                    FieldCondition(key="source", match=MatchValue(value=source_path)),
-                    FieldCondition(key="content_hash", match=MatchValue(value=content_hash)),
-                ]
-            ),
-            limit=1,
-        )
-        points, _ = results
-        return len(points) > 0
-
     def delete_by_source(self, collection: str, source_path: str) -> None:
         self._retry(
             "delete",

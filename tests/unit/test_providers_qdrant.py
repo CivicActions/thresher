@@ -131,42 +131,6 @@ class TestIndexChunks:
         mock_client.upsert.assert_not_called()
 
 
-class TestExistsByHash:
-    def test_returns_true_when_found(self, mock_qdrant):
-        provider, mock_client = mock_qdrant
-        mock_point = MagicMock()
-        mock_client.scroll.return_value = ([mock_point], None)
-
-        result = provider.exists_by_hash("docs", "file.txt", "abc123")
-
-        assert result is True
-        mock_client.scroll.assert_called_once()
-        scroll_args = mock_client.scroll.call_args
-        assert scroll_args.kwargs["collection_name"] == "docs"
-        assert scroll_args.kwargs["limit"] == 1
-
-    def test_returns_false_when_not_found(self, mock_qdrant):
-        provider, mock_client = mock_qdrant
-        mock_client.scroll.return_value = ([], None)
-
-        result = provider.exists_by_hash("docs", "file.txt", "abc123")
-
-        assert result is False
-
-    def test_uses_correct_filter(self, mock_qdrant):
-        provider, mock_client = mock_qdrant
-        mock_client.scroll.return_value = ([], None)
-
-        provider.exists_by_hash("docs", "path/to/file.txt", "hash456")
-
-        scroll_filter = mock_client.scroll.call_args.kwargs["scroll_filter"]
-        assert len(scroll_filter.must) == 2
-        assert scroll_filter.must[0].key == "source"
-        assert scroll_filter.must[0].match.value == "path/to/file.txt"
-        assert scroll_filter.must[1].key == "content_hash"
-        assert scroll_filter.must[1].match.value == "hash456"
-
-
 class TestDeleteBySource:
     def test_calls_delete_with_filter(self, mock_qdrant):
         provider, mock_client = mock_qdrant
