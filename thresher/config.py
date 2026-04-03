@@ -38,7 +38,8 @@ class QdrantConfig:
     url: str = "http://localhost:6333"
     api_key: str = ""
     timeout: int = 60
-    batch_size: int = 100
+    batch_size: int = 1000
+    prefer_grpc: bool = False
 
 
 @dataclass

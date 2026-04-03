@@ -396,5 +396,6 @@ def create_destination_provider(config: Config) -> DestinationProvider:
             timeout=config.destination.qdrant.timeout,
             batch_size=config.destination.qdrant.batch_size,
             vector_name=config.embedding.models[config.embedding.default].vector_name,
+            prefer_grpc=config.destination.qdrant.prefer_grpc,
         )
     raise ValueError(f"Unknown destination provider: {config.destination.provider}")

@@ -417,8 +417,9 @@ class TestProviderFactories:
             url="http://localhost:6333",
             api_key="",
             timeout=60,
-            batch_size=100,
+            batch_size=1000,
             vector_name="test-vec",
+            prefer_grpc=False,
         )
 
     def test_create_destination_provider_unknown_raises(self, config):

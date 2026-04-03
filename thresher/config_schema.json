@@ -82,7 +82,12 @@
             "batch_size": {
               "type": "integer",
               "minimum": 1,
-              "default": 100
+              "default": 1000
+            },
+            "prefer_grpc": {
+              "type": "boolean",
+              "description": "Use gRPC instead of REST for Qdrant communication.",
+              "default": false
             }
           }
         }

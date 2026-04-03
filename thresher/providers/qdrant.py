@@ -37,13 +37,15 @@ class QdrantDestinationProvider:
         url: str = "http://localhost:6333",
         api_key: str = "",
         timeout: int = 60,
-        batch_size: int = 100,
+        batch_size: int = 1000,
         vector_name: str = "fast-all-minilm-l6-v2",
+        prefer_grpc: bool = False,
     ):
         self._client = QdrantClient(
             url=url,
             api_key=api_key or None,
             timeout=timeout,
+            prefer_grpc=prefer_grpc,
         )
         self.batch_size = batch_size
         self.vector_name = vector_name
