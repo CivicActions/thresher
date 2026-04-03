@@ -11,12 +11,14 @@ logger = logging.getLogger("thresher.chunkers.docling_hybrid")
 def chunk_with_docling_hybrid(
     document_json: str,
     chunk_size: int = 512,
+    tokenizer: str = "sentence-transformers/all-MiniLM-L6-v2",
 ) -> list[dict[str, Any]]:
     """Chunk a docling-extracted document using HybridChunker.
 
     Args:
         document_json: Serialized DoclingDocument JSON string
         chunk_size: Maximum tokens per chunk
+        tokenizer: Tokenizer model name for accurate token counting
 
     Returns:
         List of chunk dicts with keys: text, headings
@@ -35,7 +37,7 @@ def chunk_with_docling_hybrid(
         return []
 
     chunker = HybridChunker(
-        tokenizer="sentence-transformers/all-MiniLM-L6-v2",  # ty: ignore[invalid-argument-type]
+        tokenizer=tokenizer,  # ty: ignore[invalid-argument-type]
         max_tokens=chunk_size,  # ty: ignore[unknown-argument]
         merge_peers=True,
     )

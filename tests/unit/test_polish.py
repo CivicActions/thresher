@@ -22,6 +22,7 @@ from thresher.controller.scanner import scan_summary
 from thresher.runner.processor import FileProcessor
 from thresher.types import (
     ChunkerConfig,
+    EmbeddingModelConfig,
     FileTypeGroup,
     ProcessingStatus,
     RouteResult,
@@ -197,6 +198,12 @@ def mock_destination():
 def mock_embedder():
     embedder = MagicMock()
     embedder.embed_texts.return_value = [[0.1, 0.2, 0.3]]
+    embedder.get_model_config.return_value = EmbeddingModelConfig(
+        model="sentence-transformers/all-MiniLM-L6-v2",
+        vector_size=384,
+        vector_name="fast-all-minilm-l6-v2",
+        max_tokens=512,
+    )
     return embedder
 
 

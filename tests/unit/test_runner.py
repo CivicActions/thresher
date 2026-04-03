@@ -128,6 +128,12 @@ def mock_destination():
 def mock_embedder():
     embedder = MagicMock()
     embedder.embed_texts.return_value = [[0.1, 0.2, 0.3]]
+    embedder.get_model_config.return_value = EmbeddingModelConfig(
+        model="sentence-transformers/all-MiniLM-L6-v2",
+        vector_size=384,
+        vector_name="fast-all-minilm-l6-v2",
+        max_tokens=512,
+    )
     return embedder
 
 
@@ -250,6 +256,83 @@ class TestFileProcessor:
 
 
 # ---------------------------------------------------------------------------
+# _enforce_max_tokens tests
+# ---------------------------------------------------------------------------
+
+
+class TestEnforceMaxTokens:
+    """Tests for _enforce_max_tokens safety split."""
+
+    def test_short_chunks_pass_through(self):
+        """Chunks with short text are returned unchanged."""
+        from thresher.runner.processor import _enforce_max_tokens
+
+        chunks = [{"text": "short text", "headings": ["h1"]}]
+        result = _enforce_max_tokens(chunks, max_tokens=512, tokenizer="test")
+        assert result == chunks
+
+    def test_long_chunk_is_split(self):
+        """A chunk exceeding the character heuristic threshold gets re-chunked."""
+        from thresher.runner.processor import _enforce_max_tokens
+
+        # Create text that exceeds max_tokens * 6 characters (the heuristic)
+        long_text = "word " * 4000  # ~20000 chars, well over 512*6=3072
+
+        chunks = [{"text": long_text, "headings": ["h1"]}]
+
+        with patch(
+            "thresher.processing.chunkers.chonkie_recursive.chunk_with_recursive",
+            return_value=[{"text": "part1"}, {"text": "part2"}],
+        ):
+            result = _enforce_max_tokens(chunks, max_tokens=512, tokenizer="test-model")
+
+        assert len(result) == 2
+        # Original metadata is merged into sub-chunks
+        assert result[0]["headings"] == ["h1"]
+        assert result[1]["headings"] == ["h1"]
+        assert result[0]["text"] == "part1"
+        assert result[1]["text"] == "part2"
+
+    def test_long_chunk_single_result_keeps_original(self):
+        """If re-chunking produces just 1 chunk, keep the original metadata."""
+        from thresher.runner.processor import _enforce_max_tokens
+
+        long_text = "word " * 4000
+
+        chunks = [{"text": long_text, "headings": ["h1"], "start_line": 10}]
+
+        with patch(
+            "thresher.processing.chunkers.chonkie_recursive.chunk_with_recursive",
+            return_value=[{"text": long_text}],
+        ):
+            result = _enforce_max_tokens(chunks, max_tokens=512, tokenizer="test-model")
+
+        assert len(result) == 1
+        assert result[0]["text"] == long_text
+        assert result[0]["start_line"] == 10
+
+    def test_mixed_chunks(self):
+        """A mix of short and long chunks: short pass through, long gets split."""
+        from thresher.runner.processor import _enforce_max_tokens
+
+        short_chunk = {"text": "short", "idx": 0}
+        long_chunk = {"text": "word " * 4000, "idx": 1}
+
+        with patch(
+            "thresher.processing.chunkers.chonkie_recursive.chunk_with_recursive",
+            return_value=[{"text": "p1"}, {"text": "p2"}, {"text": "p3"}],
+        ):
+            result = _enforce_max_tokens(
+                [short_chunk, long_chunk], max_tokens=512, tokenizer="test-model"
+            )
+
+        assert len(result) == 4  # 1 short + 3 split
+        assert result[0] == short_chunk
+        assert result[1]["text"] == "p1"
+        assert result[1]["idx"] == 1  # metadata carried over
+
+
+# ---------------------------------------------------------------------------
 # dispatch_chunker tests
 # ---------------------------------------------------------------------------
 
@@ -345,6 +428,7 @@ class TestDispatchChunker:
         mock_chunker.assert_called_once_with(
             doc_json,
             chunk_size=512,
+            tokenizer="sentence-transformers/all-MiniLM-L6-v2",
         )
 
     def test_docling_hybrid_without_json_falls_back(self):

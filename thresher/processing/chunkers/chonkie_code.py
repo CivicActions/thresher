@@ -52,6 +52,7 @@ def chunk_code(
     chunk_size: int = 512,
     language: str = "python",
     file_path: str = "",
+    tokenizer: str = "sentence-transformers/all-MiniLM-L6-v2",
 ) -> list[dict[str, Any]]:
     """Chunk source code using Chonkie CodeChunker (tree-sitter AST).
 
@@ -60,6 +61,7 @@ def chunk_code(
         chunk_size: Maximum tokens per chunk
         language: Programming language name for tree-sitter
         file_path: Optional file path for context
+        tokenizer: Tokenizer model name for accurate token counting
 
     Returns:
         List of chunk dicts with keys: text, start_index, end_index,
@@ -76,7 +78,7 @@ def chunk_code(
 
     try:
         chunker = CodeChunker(
-            tokenizer="sentence-transformers/all-MiniLM-L6-v2",
+            tokenizer=tokenizer,
             chunk_size=chunk_size,
             language=language,
         )

@@ -158,7 +158,13 @@ class FileProcessor:
                 )
 
                 # 7. Chunk
-                raw_chunks = dispatch_chunker(text, group, doc_json, file_path=file_path)
+                raw_chunks = dispatch_chunker(
+                    text,
+                    group,
+                    doc_json,
+                    file_path=file_path,
+                    tokenizer=model_config.model,
+                )
                 if not raw_chunks:
                     return ProcessingResult(
                         path=file_path,
@@ -167,6 +173,13 @@ class FileProcessor:
                         content_hash=content_hash,
                         file_type_group=group_name,
                     )
+
+                # 7b. Safety split: re-chunk any oversized chunks that exceed
+                # the embedding model's token limit.  Chunker token counts can
+                # diverge from the actual model tokenizer, and some content
+                # (large tables, code blocks) may be indivisible for the chunker.
+                max_tokens = model_config.max_tokens
+                raw_chunks = _enforce_max_tokens(raw_chunks, max_tokens, model_config.model)
 
                 # 8. Embed in batches to limit peak memory on large files
                 chunk_texts = [c["text"] for c in raw_chunks]
@@ -329,11 +342,49 @@ def _extract(
     return None, None
 
 
+def _enforce_max_tokens(
+    chunks: list[dict],
+    max_tokens: int,
+    tokenizer: str,
+) -> list[dict]:
+    """Re-split any chunks that exceed *max_tokens* using RecursiveChunker.
+
+    Chunks within the limit are passed through unchanged.
+    """
+    from thresher.processing.chunkers.chonkie_recursive import chunk_with_recursive
+
+    result: list[dict] = []
+    for chunk in chunks:
+        text = chunk["text"]
+        # Quick character heuristic: skip expensive tokenizer call for short texts.
+        # A 512-token chunk is rarely longer than ~3000 characters.
+        if len(text) <= max_tokens * 6:
+            result.append(chunk)
+            continue
+        sub = chunk_with_recursive(text, chunk_size=max_tokens, tokenizer=tokenizer)
+        if len(sub) <= 1:
+            # Already a single chunk — keep the original metadata
+            result.append(chunk)
+        else:
+            logger.debug(
+                "Safety split: chunk with ~%d chars -> %d sub-chunks (max_tokens=%d)",
+                len(text),
+                len(sub),
+                max_tokens,
+            )
+            for s in sub:
+                # Carry over metadata from the original chunk
+                merged = {**chunk, **s}
+                result.append(merged)
+    return result
+
+
 def dispatch_chunker(
     text: str,
     group: FileTypeGroup,
     doc_json: str | None = None,
     file_path: str = "",
+    tokenizer: str = "sentence-transformers/all-MiniLM-L6-v2",
 ) -> list[dict]:
     """Dispatch to the correct chunker based on file type group config."""
     strategy = group.chunker.strategy
@@ -342,7 +393,11 @@ def dispatch_chunker(
     if strategy == "docling-hybrid" and doc_json:
         from thresher.processing.chunkers.docling_hybrid import chunk_with_docling_hybrid
 
-        chunks = chunk_with_docling_hybrid(doc_json, chunk_size=chunk_size)
+        chunks = chunk_with_docling_hybrid(
+            doc_json,
+            chunk_size=chunk_size,
+            tokenizer=tokenizer,
+        )
         if chunks:
             return chunks
         # Fall through to recursive if docling hybrid produces nothing
@@ -356,18 +411,29 @@ def dispatch_chunker(
         from thresher.processing.chunkers.chonkie_code import chunk_code, detect_language
 
         language = detect_language(file_path, group.chunker.language)
-        return chunk_code(text, chunk_size=chunk_size, language=language, file_path=file_path)
+        return chunk_code(
+            text,
+            chunk_size=chunk_size,
+            language=language,
+            file_path=file_path,
+            tokenizer=tokenizer,
+        )
 
     if strategy in ("chonkie-recursive", "docling-hybrid"):
         from thresher.processing.chunkers.chonkie_recursive import chunk_with_recursive
 
         recipe = group.chunker.recipe
-        return chunk_with_recursive(text, chunk_size=chunk_size, recipe=recipe)
+        return chunk_with_recursive(
+            text,
+            chunk_size=chunk_size,
+            recipe=recipe,
+            tokenizer=tokenizer,
+        )
 
     # Unknown strategy — fall back to recursive
     from thresher.processing.chunkers.chonkie_recursive import chunk_with_recursive
 
-    return chunk_with_recursive(text, chunk_size=chunk_size)
+    return chunk_with_recursive(text, chunk_size=chunk_size, tokenizer=tokenizer)
 
 
 def create_source_provider(config: Config) -> SourceProvider:

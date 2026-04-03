@@ -266,7 +266,11 @@ class TestDispatchChunkerCodeRoute:
 
         mock_dl.assert_called_once_with("test.py", "python")
         mock_cc.assert_called_once_with(
-            "code", chunk_size=512, language="python", file_path="test.py"
+            "code",
+            chunk_size=512,
+            language="python",
+            file_path="test.py",
+            tokenizer="sentence-transformers/all-MiniLM-L6-v2",
         )
         assert result == [{"text": "chunk1"}]
 
