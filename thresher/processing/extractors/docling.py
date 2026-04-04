@@ -40,10 +40,12 @@ def main():
     output_path = args["output_path"]
     error_path = args["error_path"]
     max_pages = args.get("max_pages", 500)
+    ocr_enabled = args.get("ocr_enabled", True)
+    ocr_lang = args.get("ocr_lang", ["eng"])
 
     try:
-        from docling.document_converter import DocumentConverter
-        from docling.datamodel.pipeline_options import PdfPipelineOptions
+        from docling.document_converter import DocumentConverter, PdfFormatOption
+        from docling.datamodel.pipeline_options import PdfPipelineOptions, TesseractOcrOptions
         from docling.datamodel.base_models import InputFormat
 
         AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"}
@@ -71,10 +73,10 @@ def main():
             )
         else:
             # Document/image extraction
-            from docling.document_converter import PdfFormatOption
-
             pipeline_options = PdfPipelineOptions()
-            pipeline_options.do_ocr = False
+            pipeline_options.do_ocr = ocr_enabled
+            if ocr_enabled:
+                pipeline_options.ocr_options = TesseractOcrOptions(lang=ocr_lang)
 
             converter = DocumentConverter(
                 allowed_formats=[
@@ -114,6 +116,8 @@ def extract_with_docling(
     file_path: Path,
     timeout: int = 600,
     max_pages: int = 500,
+    ocr_enabled: bool = True,
+    ocr_lang: list[str] | None = None,
 ) -> tuple[str, str | None]:
     """Extract document content using docling in a subprocess.
 
@@ -121,6 +125,8 @@ def extract_with_docling(
         file_path: Path to the document file
         timeout: Maximum seconds for conversion
         max_pages: Maximum pages to process
+        ocr_enabled: Whether to run OCR on scanned pages and images
+        ocr_lang: Tesseract language codes (e.g. ["eng"])
 
     Returns:
         Tuple of (markdown_text, document_json_or_none)
@@ -140,6 +146,8 @@ def extract_with_docling(
             "output_path": str(output_path),
             "error_path": str(error_path),
             "max_pages": max_pages,
+            "ocr_enabled": ocr_enabled,
+            "ocr_lang": ocr_lang or ["eng"],
         }
         args_path.write_text(json.dumps(args))
 

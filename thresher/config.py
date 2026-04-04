@@ -80,6 +80,8 @@ class ProcessingConfig:
     max_expansion_parallelism: int = 5
     upload_batch_size: int = 50
     expansion_timeout: int = 3600
+    ocr_enabled: bool = True
+    ocr_lang: list[str] = field(default_factory=lambda: ["eng"])
 
 
 @dataclass
@@ -418,6 +420,10 @@ def _build_config(raw: dict[str, Any]) -> Config:
             expansion_timeout=int(
                 proc_raw.get("expansion_timeout", 3600) if isinstance(proc_raw, dict) else 3600
             ),
+            ocr_enabled=bool(
+                proc_raw.get("ocr_enabled", True) if isinstance(proc_raw, dict) else True
+            ),
+            ocr_lang=(proc_raw.get("ocr_lang", ["eng"]) if isinstance(proc_raw, dict) else ["eng"]),
         ),
         embedding=_parse_embedding_config(embed_raw),
         kubernetes=K8sConfig(

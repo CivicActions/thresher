@@ -328,6 +328,8 @@ def _extract(
                 tmp_path,
                 timeout=config.processing.docling_timeout,
                 max_pages=config.processing.max_pages,
+                ocr_enabled=config.processing.ocr_enabled,
+                ocr_lang=config.processing.ocr_lang,
             )
         finally:
             tmp_path.unlink(missing_ok=True)

@@ -367,6 +367,19 @@
           "minimum": 1,
           "description": "Maximum seconds to wait for all expansion jobs to complete.",
           "default": 3600
+        },
+        "ocr_enabled": {
+          "type": "boolean",
+          "description": "Enable OCR for scanned PDFs and images.",
+          "default": true
+        },
+        "ocr_lang": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tesseract language codes for OCR (e.g. eng, fra, deu).",
+          "default": ["eng"]
         }
       }
     },

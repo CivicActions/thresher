@@ -46,7 +46,8 @@ def chunk_with_docling_hybrid(
     for chunk in chunker.chunk(doc):
         headings: list[str] = []
         if hasattr(chunk, "meta") and chunk.meta:
-            headings = [h.text for h in getattr(chunk.meta, "headings", []) if hasattr(h, "text")]
+            raw_headings = getattr(chunk.meta, "headings", None) or []
+            headings = [h.text for h in raw_headings if hasattr(h, "text")]
         chunks.append(
             {
                 "text": chunk.text,
