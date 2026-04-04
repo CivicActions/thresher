@@ -71,6 +71,8 @@ def main():
             )
         else:
             # Document/image extraction
+            from docling.document_converter import PdfFormatOption
+
             pipeline_options = PdfPipelineOptions()
             pipeline_options.do_ocr = False
 
@@ -81,9 +83,9 @@ def main():
                     InputFormat.ASCIIDOC, InputFormat.MD, InputFormat.CSV,
                 ],
                 format_options={
-                    InputFormat.PDF: {
-                        "pipeline_options": pipeline_options,
-                    },
+                    InputFormat.PDF: PdfFormatOption(
+                        pipeline_options=pipeline_options,
+                    ),
                 },
             )
 
