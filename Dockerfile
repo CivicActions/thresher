@@ -63,6 +63,8 @@ COPY thresher/ thresher/
 ENV OMP_NUM_THREADS=4
 # Limit glibc malloc arenas to reduce RSS overhead
 ENV MALLOC_ARENA_MAX=2
+# Point tesserocr at Debian's tessdata (tesseract-ocr-eng package)
+ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
 
 # Entrypoint — use thresher CLI
 ENTRYPOINT ["uv", "run", "python", "-m", "thresher"]
