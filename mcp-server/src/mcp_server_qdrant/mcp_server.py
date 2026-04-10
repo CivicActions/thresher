@@ -81,6 +81,7 @@ class QdrantMCPServer(FastMCP):
             qdrant_settings.local_path,
             make_indexes(qdrant_settings.filterable_fields_dict()),
             embedding_providers=collection_providers if collection_providers else None,
+            timeout=qdrant_settings.timeout,
         )
 
         super().__init__(name=name, instructions=instructions, **settings)

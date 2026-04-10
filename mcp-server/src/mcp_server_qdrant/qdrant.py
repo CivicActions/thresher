@@ -44,6 +44,7 @@ class QdrantConnector:
         qdrant_local_path: str | None = None,
         field_indexes: dict[str, models.PayloadSchemaType] | None = None,
         embedding_providers: dict[str, EmbeddingProvider] | None = None,
+        timeout: int = 30,
     ):
         self._qdrant_url = qdrant_url.rstrip("/") if qdrant_url else None
         self._qdrant_api_key = qdrant_api_key
@@ -52,7 +53,10 @@ class QdrantConnector:
         # Per-collection providers override the single default provider when present
         self._embedding_providers: dict[str, EmbeddingProvider] = embedding_providers or {}
         self._client = AsyncQdrantClient(
-            location=qdrant_url, api_key=qdrant_api_key, path=qdrant_local_path
+            location=qdrant_url,
+            api_key=qdrant_api_key,
+            path=qdrant_local_path,
+            timeout=timeout,
         )
         self._field_indexes = field_indexes
 

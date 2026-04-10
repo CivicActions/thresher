@@ -96,6 +96,11 @@ class QdrantSettings(BaseSettings):
         description="Maximum number of results an LLM may request. None means uncapped.",
     )
     read_only: bool = Field(default=False, validation_alias="QDRANT_READ_ONLY")
+    timeout: int = Field(
+        default=30,
+        validation_alias="QDRANT_TIMEOUT",
+        description="Timeout in seconds for Qdrant operations.",
+    )
 
     collections: list[CollectionConfig] = Field(
         default_factory=list,
