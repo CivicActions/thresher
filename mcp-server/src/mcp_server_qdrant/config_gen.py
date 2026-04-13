@@ -30,6 +30,7 @@ def _build_stdio_server(
     qdrant_url: str,
     config_path: str | None,
     name: str,
+    tool_find_description: str | None = None,
 ) -> dict:
     """Build a stdio server config dict (command/args/env).
 
@@ -56,6 +57,8 @@ def _build_stdio_server(
         env["DEFAULT_COLLECTION"] = default_collection
         env["QDRANT_READ_ONLY"] = "true"
         env["COLLECTIONS"] = json.dumps([c.model_dump(exclude_defaults=False) for c in collections])
+        if tool_find_description:
+            env["TOOL_FIND_DESCRIPTION"] = tool_find_description
 
     return {
         "command": cmd,
@@ -101,6 +104,7 @@ def generate_vscode(
     name: str = "vistaRpms",
     url: str | None = None,
     config_path: str | None = None,
+    tool_find_description: str | None = None,
 ) -> str:
     """Generate VS Code mcp.json configuration.
 
@@ -125,7 +129,14 @@ def generate_vscode(
     else:
         server = {
             "type": "stdio",
-            **_build_stdio_server(collections, default_collection, qdrant_url, config_path, name),
+            **_build_stdio_server(
+                collections,
+                default_collection,
+                qdrant_url,
+                config_path,
+                name,
+                tool_find_description,
+            ),
         }
         if not config_path:
             server["env"]["QDRANT_API_KEY"] = "${input:qdrantApiKey}"
@@ -145,6 +156,7 @@ def generate_claude_desktop(
     name: str = "vista-rpms",
     url: str | None = None,
     config_path: str | None = None,
+    tool_find_description: str | None = None,
 ) -> str:
     """Generate Claude Desktop configuration.
 
@@ -153,7 +165,14 @@ def generate_claude_desktop(
     if url:
         server = {"type": "http", **_build_http_server(url)}
     else:
-        server = _build_stdio_server(collections, default_collection, qdrant_url, config_path, name)
+        server = _build_stdio_server(
+            collections,
+            default_collection,
+            qdrant_url,
+            config_path,
+            name,
+            tool_find_description,
+        )
         if not config_path:
             server["env"]["QDRANT_API_KEY"] = ""  # User must fill in
 
@@ -167,13 +186,20 @@ def generate_cursor(
     name: str = "vista-rpms",
     url: str | None = None,
     config_path: str | None = None,
+    tool_find_description: str | None = None,
 ) -> str:
     """Generate Cursor MCP configuration.
 
     Cursor uses the same ``{ "mcpServers": { ... } }`` format as Claude Desktop.
     """
     return generate_claude_desktop(
-        collections, default_collection, qdrant_url, name, url, config_path
+        collections,
+        default_collection,
+        qdrant_url,
+        name,
+        url,
+        config_path,
+        tool_find_description,
     )
 
 
@@ -184,6 +210,7 @@ def generate_claude_code(
     name: str = "vista-rpms",
     url: str | None = None,
     config_path: str | None = None,
+    tool_find_description: str | None = None,
 ) -> str:
     """Generate a ``claude mcp add`` shell command for Claude Code.
 
@@ -205,6 +232,8 @@ def generate_claude_code(
         parts.append("-e QDRANT_READ_ONLY='true'")
         parts.append("-e QDRANT_API_KEY='<your-api-key>'")
         parts.append(f"-e COLLECTIONS='{collections_json}'")
+        if tool_find_description:
+            parts.append(f"-e TOOL_FIND_DESCRIPTION='{tool_find_description}'")
         parts.append("-- mcp-server-qdrant")
 
     return " \\\n  ".join(parts)

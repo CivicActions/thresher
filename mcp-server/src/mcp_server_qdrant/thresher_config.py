@@ -23,6 +23,7 @@ class ThresherMCPConfig:
     qdrant_api_key: str
     default_collection: str
     collections: list[CollectionConfig]
+    tool_find_description: str | None = None
 
 
 def read_thresher_config(config_path: str | Path) -> ThresherMCPConfig:
@@ -116,9 +117,16 @@ def read_thresher_config(config_path: str | Path) -> ThresherMCPConfig:
             )
         )
 
+    # Extract MCP-specific settings
+    mcp_raw = raw.get("mcp", {})
+    if not isinstance(mcp_raw, dict):
+        mcp_raw = {}
+    tool_find_description = mcp_raw.get("tool_find_description")
+
     return ThresherMCPConfig(
         qdrant_url=qdrant_url,
         qdrant_api_key=qdrant_api_key,
         default_collection=default_collection,
         collections=collections,
+        tool_find_description=tool_find_description,
     )

@@ -9,10 +9,11 @@ DEFAULT_TOOL_STORE_DESCRIPTION = (
     "Keep the memory for later use, when you are asked to remember something."
 )
 DEFAULT_TOOL_FIND_DESCRIPTION = (
-    "Look up memories in Qdrant. Use this tool when you need to: \n"
-    " - Find memories by their content \n"
-    " - Access memories for further analysis \n"
-    " - Get some personal information about the user"
+    "Semantic search over indexed documents and source code. "
+    "Queries should be natural language descriptions of concepts or topics, not keywords — "
+    "e.g. 'how user authentication is handled' rather than 'auth API'. "
+    "Use source_path to filter by file path when you know the package or directory. "
+    "Results are document chunks with source file paths and metadata."
 )
 
 METADATA_PATH = "metadata"

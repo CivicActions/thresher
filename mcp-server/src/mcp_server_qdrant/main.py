@@ -92,6 +92,7 @@ def _apply_json_config(config: dict) -> None:
         "default_collection": "DEFAULT_COLLECTION",
         "read_only": "QDRANT_READ_ONLY",
         "search_limit": "QDRANT_SEARCH_LIMIT",
+        "tool_find_description": "TOOL_FIND_DESCRIPTION",
     }
 
     for json_key, env_key in field_map.items():
@@ -130,6 +131,7 @@ def _run_generate_config(args) -> None:
         name=name,
         url=args.url,
         config_path=args.config_path,
+        tool_find_description=tc.tool_find_description,
     )
     print(output)
     sys.exit(0)
