@@ -2,6 +2,10 @@
 
 Cloud-native pipeline for converting documents, source code, images, audio/video, and archives into chunked markdown indexed in a vector search backend. Designed for scale: subprocess-isolated extraction prevents memory leaks, Kubernetes-native queue/runner architecture enables horizontal scaling, and flexible YAML configuration avoids hardcoding.
 
+## Status
+
+Working prototype - works as described, but in practice requires some active management with larger datasets to manage scaling and memory.
+
 ## Features
 
 - **Multi-format**: Office docs, PDFs, images, audio/video, source code, archives, and plain text
