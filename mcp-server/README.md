@@ -77,16 +77,26 @@ important ones are listed below:
 
 ## Installation
 
-### Using uvx
+### Using uvx (recommended)
 
-When using [`uvx`](https://docs.astral.sh/uv/guides/tools/#running-tools) no specific installation is needed to directly run *mcp-server-qdrant*.
+This fork is **not** published to PyPI (the `mcp-server-qdrant` name there belongs to the upstream project).
+Instead, run it directly from this repo with [`uvx`](https://docs.astral.sh/uv/guides/tools/#running-tools)
+using the `--from` flag pointed at this repo's `mcp-server` subdirectory:
 
 ```shell
 QDRANT_URL="http://localhost:6333" \
 COLLECTION_NAME="my-collection" \
 EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2" \
-uvx mcp-server-qdrant
+uvx --from "git+https://github.com/CivicActions/thresher@main#subdirectory=mcp-server" mcp-server-qdrant
 ```
+
+> [!IMPORTANT]
+> Always use `--from git+https://github.com/CivicActions/thresher...`. Plain `uvx mcp-server-qdrant`
+> will install the unrelated upstream package from PyPI, which does not include the multi-collection
+> support, `source_path` filter, or `num_results`/`offset` extensions used by thresher.
+
+You can pin to a specific commit or tag for reproducibility, e.g.
+`git+https://github.com/CivicActions/thresher@<sha>#subdirectory=mcp-server`.
 
 #### Transport Protocols
 
@@ -95,7 +105,7 @@ The server supports different transport protocols that can be specified using th
 ```shell
 QDRANT_URL="http://localhost:6333" \
 COLLECTION_NAME="my-collection" \
-uvx mcp-server-qdrant --transport sse
+uvx --from "git+https://github.com/CivicActions/thresher@main#subdirectory=mcp-server" mcp-server-qdrant --transport sse
 ```
 
 Supported transport protocols:
@@ -109,20 +119,13 @@ The default transport is `stdio` if not specified.
 When SSE transport is used, the server will listen on the specified port and wait for incoming connections. The default
 port is 8000, however it can be changed using the `FASTMCP_PORT` environment variable.
 
-```shell
-QDRANT_URL="http://localhost:6333" \
-COLLECTION_NAME="my-collection" \
-FASTMCP_PORT=1234 \
-uvx mcp-server-qdrant --transport sse
-```
-
 ### Using Docker
 
 A Dockerfile is available for building and running the MCP server:
 
 ```bash
-# Build the container
-docker build -t mcp-server-qdrant .
+# Build the container (run from the mcp-server subdirectory of this repo)
+docker build -t thresher-mcp-server-qdrant .
 
 # Run the container
 docker run -p 8000:8000 \
@@ -130,114 +133,45 @@ docker run -p 8000:8000 \
   -e QDRANT_URL="http://your-qdrant-server:6333" \
   -e QDRANT_API_KEY="your-api-key" \
   -e COLLECTION_NAME="your-collection" \
-  mcp-server-qdrant
+  thresher-mcp-server-qdrant
 ```
 
 > [!TIP]
 > Please note that we set `FASTMCP_HOST="0.0.0.0"` to make the server listen on all network interfaces. This is
 > necessary when running the server in a Docker container.
 
-### Manual configuration of Claude Desktop
+### MCP client configuration
 
-To use this server with the Claude Desktop app, add the following configuration to the "mcpServers" section of your
-`claude_desktop_config.json`:
+For end-user MCP client configuration (Claude Code, Claude Desktop, VS Code, Cursor) including the
+ready-to-use settings for the public VistA & RPMS archive, see the
+[vista-rpms-archive README](https://github.com/CivicActions/vista-rpms-archive#mcp-server-configuration).
+
+The general pattern for any MCP client is:
 
 ```json
 {
-  "qdrant": {
-    "command": "uvx",
-    "args": ["mcp-server-qdrant"],
-    "env": {
-      "QDRANT_URL": "https://xyz-example.eu-central.aws.cloud.qdrant.io:6333",
-      "QDRANT_API_KEY": "your_api_key",
-      "COLLECTION_NAME": "your-collection-name",
-      "EMBEDDING_MODEL": "sentence-transformers/all-MiniLM-L6-v2"
-    }
+  "command": "uvx",
+  "args": [
+    "--from",
+    "git+https://github.com/CivicActions/thresher@main#subdirectory=mcp-server",
+    "mcp-server-qdrant"
+  ],
+  "env": {
+    "QDRANT_URL": "https://your-qdrant-server",
+    "QDRANT_API_KEY": "your_api_key",
+    "COLLECTION_NAME": "your-collection-name",
+    "EMBEDDING_MODEL": "sentence-transformers/all-MiniLM-L6-v2"
   }
 }
 ```
 
-For local Qdrant mode:
+This MCP server will use the collection(s) specified. Documents must be indexed into Qdrant by the thresher
+pipeline before searches will return results.
 
-```json
-{
-  "qdrant": {
-    "command": "uvx",
-    "args": ["mcp-server-qdrant"],
-    "env": {
-      "QDRANT_LOCAL_PATH": "/path/to/qdrant/database",
-      "COLLECTION_NAME": "your-collection-name",
-      "EMBEDDING_MODEL": "sentence-transformers/all-MiniLM-L6-v2"
-    }
-  }
-}
-```
+## Run MCP server in Development Mode
 
-This MCP server will use the collection specified. Documents must be indexed into Qdrant by the thresher pipeline
-before searches will return results.
-
-By default, the server will use the `sentence-transformers/all-MiniLM-L6-v2` embedding model to encode queries.
-For the time being, only [FastEmbed](https://qdrant.github.io/fastembed/) models are supported.
-
-## Support for other tools
-
-This MCP server can be used with any MCP-compatible client. For example, you can use it with
-[Cursor](https://docs.cursor.com/context/model-context-protocol) and [VS Code](https://code.visualstudio.com/docs),
-which provide built-in support for the Model Context Protocol.
-
-### Using with Cursor/Windsurf
-
-You can configure this MCP server to work as a semantic code/document search tool for Cursor or Windsurf by
-customizing the tool description:
-
-```bash
-QDRANT_URL="http://localhost:6333" \
-COLLECTION_NAME="code-snippets" \
-TOOL_FIND_DESCRIPTION="Search for relevant code snippets based on natural language descriptions. \
-The 'query' parameter should describe what you're looking for, \
-and the tool will return the most relevant code snippets. \
-Use this when you need to find existing code snippets for reuse or reference." \
-uvx mcp-server-qdrant --transport sse # Enable SSE transport
-```
-
-In Cursor/Windsurf, you can then configure the MCP server in your settings by pointing to this running server using
-SSE transport protocol. The description on how to add an MCP server to Cursor can be found in the [Cursor
-documentation](https://docs.cursor.com/context/model-context-protocol#adding-an-mcp-server-to-cursor). If you are
-running Cursor/Windsurf locally, you can use the following URL:
-
-```
-http://localhost:8000/sse
-```
-
-### Using with Claude Code
-
-You can enhance Claude Code's capabilities by connecting it to this MCP server, enabling semantic search over your
-existing codebase or document corpus.
-
-#### Setting up mcp-server-qdrant
-
-1. Add the MCP server to Claude Code:
-
-    ```shell
-    # Add mcp-server-qdrant configured for code search
-    claude mcp add code-search \
-    -e QDRANT_URL="http://localhost:6333" \
-    -e COLLECTION_NAME="code-repository" \
-    -e EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2" \
-    -e TOOL_FIND_DESCRIPTION="Search for relevant code snippets using natural language. The 'query' parameter should describe the functionality you're looking for." \
-    -- uvx mcp-server-qdrant
-    ```
-
-2. Verify the server was added:
-
-    ```shell
-    claude mcp list
-    ```
-
-### Run MCP server in Development Mode
-
-The MCP server can be run in development mode using the `mcp dev` command. This will start the server and open the MCP
-inspector in your browser.
+The MCP server can be run in development mode using the `fastmcp dev` command. This will start the server and open
+the MCP inspector in your browser.
 
 ```shell
 QDRANT_URL=":memory:" COLLECTION_NAME="test" \
@@ -245,131 +179,6 @@ fastmcp dev src/mcp_server_qdrant/server.py
 ```
 
 Once started, open your browser to http://localhost:5173 to access the inspector interface.
-
-### Using with VS Code
-
-#### Manual Installation
-
-Add the following JSON block to your User Settings (JSON) file in VS Code. You can do this by pressing `Ctrl + Shift + P` and typing `Preferences: Open User Settings (JSON)`.
-
-```json
-{
-  "mcp": {
-    "inputs": [
-      {
-        "type": "promptString",
-        "id": "qdrantUrl",
-        "description": "Qdrant URL"
-      },
-      {
-        "type": "promptString",
-        "id": "qdrantApiKey",
-        "description": "Qdrant API Key",
-        "password": true
-      },
-      {
-        "type": "promptString",
-        "id": "collectionName",
-        "description": "Collection Name"
-      }
-    ],
-    "servers": {
-      "qdrant": {
-        "command": "uvx",
-        "args": ["mcp-server-qdrant"],
-        "env": {
-          "QDRANT_URL": "${input:qdrantUrl}",
-          "QDRANT_API_KEY": "${input:qdrantApiKey}",
-          "COLLECTION_NAME": "${input:collectionName}"
-        }
-      }
-    }
-  }
-}
-```
-
-Or if you prefer using Docker, add this configuration instead:
-
-```json
-{
-  "mcp": {
-    "inputs": [
-      {
-        "type": "promptString",
-        "id": "qdrantUrl",
-        "description": "Qdrant URL"
-      },
-      {
-        "type": "promptString",
-        "id": "qdrantApiKey",
-        "description": "Qdrant API Key",
-        "password": true
-      },
-      {
-        "type": "promptString",
-        "id": "collectionName",
-        "description": "Collection Name"
-      }
-    ],
-    "servers": {
-      "qdrant": {
-        "command": "docker",
-        "args": [
-          "run",
-          "-p", "8000:8000",
-          "-i",
-          "--rm",
-          "-e", "QDRANT_URL",
-          "-e", "QDRANT_API_KEY",
-          "-e", "COLLECTION_NAME",
-          "mcp-server-qdrant"
-        ],
-        "env": {
-          "QDRANT_URL": "${input:qdrantUrl}",
-          "QDRANT_API_KEY": "${input:qdrantApiKey}",
-          "COLLECTION_NAME": "${input:collectionName}"
-        }
-      }
-    }
-  }
-}
-```
-
-Alternatively, you can create a `.vscode/mcp.json` file in your workspace with the following content:
-
-```json
-{
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "qdrantUrl",
-      "description": "Qdrant URL"
-    },
-    {
-      "type": "promptString",
-      "id": "qdrantApiKey",
-      "description": "Qdrant API Key",
-      "password": true
-    },
-    {
-      "type": "promptString",
-      "id": "collectionName",
-      "description": "Collection Name"
-    }
-  ],
-  "servers": {
-    "qdrant": {
-      "command": "uvx",
-      "args": ["mcp-server-qdrant"],
-      "env": {
-        "QDRANT_URL": "${input:qdrantUrl}",
-        "QDRANT_API_KEY": "${input:qdrantApiKey}",
-        "COLLECTION_NAME": "${input:collectionName}"
-      }
-    }
-  }
-}
-```
 
 ## Contributing
 

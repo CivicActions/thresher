@@ -13,15 +13,22 @@ from typing import Any
 
 from mcp_server_qdrant.settings import CollectionConfig
 
+# This fork is not published to PyPI (the `mcp-server-qdrant` name on PyPI belongs
+# to the unrelated upstream project). When falling back to uvx, point it at this
+# repo's `mcp-server` subdirectory so it builds and runs the correct package.
+UVX_SOURCE = "git+https://github.com/CivicActions/thresher@main#subdirectory=mcp-server"
 
-def _find_server_command() -> str:
-    """Determine the best command to launch the MCP server.
 
-    Returns 'mcp-server-qdrant' if it's on PATH, otherwise falls back to 'uvx'.
+def _find_server_command() -> tuple[str, list[str]]:
+    """Determine the command + leading args needed to launch the MCP server.
+
+    Returns ``("mcp-server-qdrant", [])`` if the script is on PATH, otherwise
+    ``("uvx", ["--from", UVX_SOURCE, "mcp-server-qdrant"])`` so end users do not
+    need a local install.
     """
     if shutil.which("mcp-server-qdrant"):
-        return "mcp-server-qdrant"
-    return "uvx"
+        return "mcp-server-qdrant", []
+    return "uvx", ["--from", UVX_SOURCE, "mcp-server-qdrant"]
 
 
 def _build_stdio_server(
@@ -37,17 +44,10 @@ def _build_stdio_server(
     If config_path is provided, the server is launched with ``--config <path>``.
     Otherwise, configuration is passed via environment variables.
     """
-    cmd = _find_server_command()
-
-    if cmd == "mcp-server-qdrant":
-        args = []
-        if config_path:
-            args = ["--config", str(Path(config_path).resolve())]
-    else:
-        # uvx mode
-        args = ["mcp-server-qdrant"]
-        if config_path:
-            args.extend(["--config", str(Path(config_path).resolve())])
+    cmd, args = _find_server_command()
+    args = list(args)
+    if config_path:
+        args.extend(["--config", str(Path(config_path).resolve())])
 
     env: dict[str, str] = {}
 
@@ -220,11 +220,14 @@ def generate_claude_code(
     if url:
         return f"claude mcp add --transport http {name} {url}"
 
+    cmd, prefix_args = _find_server_command()
+    launch = " ".join([cmd, *prefix_args])
+
     parts = [f"claude mcp add {name}"]
 
     if config_path:
         resolved = str(Path(config_path).resolve())
-        parts.append(f"-e QDRANT_API_KEY='<your-api-key>' -- mcp-server-qdrant --config {resolved}")
+        parts.append(f"-e QDRANT_API_KEY='<your-api-key>' -- {launch} --config {resolved}")
     else:
         collections_json = json.dumps([c.model_dump(exclude_defaults=False) for c in collections])
         parts.append(f"-e QDRANT_URL='{qdrant_url}'")
@@ -234,7 +237,7 @@ def generate_claude_code(
         parts.append(f"-e COLLECTIONS='{collections_json}'")
         if tool_find_description:
             parts.append(f"-e TOOL_FIND_DESCRIPTION='{tool_find_description}'")
-        parts.append("-- mcp-server-qdrant")
+        parts.append(f"-- {launch}")
 
     return " \\\n  ".join(parts)
 
